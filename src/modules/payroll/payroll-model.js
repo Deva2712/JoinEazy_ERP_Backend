@@ -35,9 +35,10 @@ const Payroll = sequelize.define(
 		},
 		paidAt: {
 			type: DataTypes.DATE, // Can be null if status is Pending
+			allowNull: true,
 		},
 		breakdown: {
-			type: DataTypes.JSON, // Flexible JSON object containing arrays for earnings and deductions
+			type: DataTypes.JSONB, // Flexible JSON object containing arrays for earnings and deductions
 			allowNull: false,
 		},
 	},
@@ -47,7 +48,10 @@ const Payroll = sequelize.define(
 	},
 );
 
-// Define association to allow for eager loading (joins) if needed later
+/**
+ * Define association to allow for eager loading (joins).
+ * Links the payroll record to the existing 'users' table.
+ */
 Payroll.associate = (models) => {
 	Payroll.belongsTo(models.User, { foreignKey: "userId", as: "user" });
 };
