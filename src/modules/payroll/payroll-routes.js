@@ -7,13 +7,13 @@ const router = express.Router();
 // All routes below require authentication
 router.use(protect);
 
-// Matches: GET /payroll/history
+// Matches: getHistory()
 router.get("/history", getHistory);
 
-// Matches: GET /payroll/breakdown
+// Matches: getBreakdown()
 router.get("/breakdown", getBreakdown);
 
-// Matches: GET /payroll/download/:id
+// Matches: downloadPayslip()
 router.get("/download/:id", download);
 
 export default router;
