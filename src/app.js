@@ -6,6 +6,7 @@ import "dotenv/config";
 import authRoutes from "./modules/auth/auth-routes.js";
 import userRoutes from "./modules/user/user-routes.js";
 import payrollRoutes from "./modules/payroll/payroll-routes.js";
+import libraryRoutes from "./modules/payroll/library-routes.js";
 
 // Middleware imports
 import { errorHandler } from "./middleware/error.middleware.js";
@@ -26,6 +27,7 @@ app.use(requestLogger);
 app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/users", userRoutes);
 app.use("/api/v1/payroll", payrollRoutes);
+app.use("/api/v1/library", libraryRoutes);
 
 // ─── Health Check ─────────────────────────────────────────────────────────────
 app.get("/health", (req, res) => {
