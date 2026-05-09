@@ -6,7 +6,7 @@ import "dotenv/config";
 import authRoutes from "./modules/auth/auth-routes.js";
 import userRoutes from "./modules/user/user-routes.js";
 import payrollRoutes from "./modules/payroll/payroll-routes.js";
-import libraryRoutes from "./modules/payroll/library-routes.js";
+import libraryRoutes from "./modules/library/library-routes.js";
 
 // Middleware imports
 import { errorHandler } from "./middleware/error.middleware.js";
