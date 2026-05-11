@@ -3,30 +3,34 @@ import { Attendance, ProfessorLog } from "./attendance-model.js";
 // Fetches all attendance records for a cohort, sorted by date.
 export const getCohortAttendance = async (cohortId) => {
 	return await Attendance.findAll({
-		where: { courseId: cohortId },
+		where: { cohortId },
 		order: [["date", "DESC"]],
 	});
 };
 
 // Handles creation or update of attendance records.
-export const saveAttendance = async (courseId, userId, data) => {
+export const saveAttendance = async (cohortId, facultyId, data) => {
 	const { date, studentIds, status, section } = data;
 	const isFinal = status === "final";
 
 	const [record, created] = await Attendance.findOrCreate({
-		where: { courseId, date, section: section || "All" },
+		where: {
+			cohortId,
+			date,
+			section: section || "All",
+		},
 		defaults: {
-			userId,
+			recordedBy: facultyId,
 			presentStudentIds: studentIds,
 			isFinal,
 		},
 	});
 
 	if (!created) {
-		// Only allow updates if not already finalized
+		// Prevent updates to records already marked as final
 		if (record.isFinal) {
 			const err = new Error(
-				"Attendance for this date is already finalized",
+				"This attendance session has been finalized and cannot be edited.",
 			);
 			err.statusCode = 403;
 			throw err;
@@ -42,13 +46,19 @@ export const saveAttendance = async (courseId, userId, data) => {
 };
 
 // Reverts a finalized record to a draft state.
-export const reopenSession = async (courseId, { date, section }) => {
+export const reopenSession = async (cohortId, { date, section }) => {
 	const record = await Attendance.findOne({
-		where: { courseId, date, section: section || "All" },
+		where: {
+			cohortId,
+			date,
+			section: section || "All",
+		},
 	});
 
 	if (!record) {
-		const err = new Error("Attendance record not found");
+		const err = new Error(
+			"Attendance record not found for the specified date.",
+		);
 		err.statusCode = 404;
 		throw err;
 	}
