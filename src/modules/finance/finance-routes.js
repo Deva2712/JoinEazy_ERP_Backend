@@ -14,6 +14,7 @@ router.use(protect);
 /*
 * Routes dynamic to :type ('expenses' or 'advances')
 */
+
 // Matches: getRecords()
 router.get("/:type/list", getRecords);
 

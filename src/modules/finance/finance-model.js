@@ -67,6 +67,10 @@ const FinanceRecord = sequelize.define(
 	},
 );
 
+/**
+ * Define association to allow for eager loading (joins).
+ * Links the finance record to the existing 'users' table.
+ */
 FinanceRecord.associate = (models) => {
 	FinanceRecord.belongsTo(models.User, { foreignKey: "userId", as: "user" });
 };
