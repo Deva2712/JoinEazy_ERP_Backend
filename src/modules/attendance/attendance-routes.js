@@ -14,7 +14,7 @@ router.get("/logs/:cohortId", ctrl.getCohortLogs);
 router.post("/courses/:courseId/attendance", ctrl.markAttendance);
 
 // Matches: reopenAttendance(courseId, data)
-router.post("/courses/:courseId/attendance/reopen", ctrl.reopen);
+router.post("/courses/:courseId/attendance/reopen", ctrl.reopenRecord);
 
 // Matches: getProfessorLogs()
 router.get("/professor/logs", ctrl.getProfLogs);
