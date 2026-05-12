@@ -9,6 +9,7 @@ import payrollRoutes from "./modules/payroll/payroll-routes.js";
 import libraryRoutes from "./modules/library/library-routes.js";
 import financeRoutes from "./modules/finance/finance-routes.js";
 import attendanceRoutes from "./modules/attendance/attendance-routes.js";
+import researchRoutes from "./modules/research/research-routes.js";
 
 // Middleware imports
 import { errorHandler } from "./middleware/error.middleware.js";
@@ -17,10 +18,12 @@ import { requestLogger } from "./middleware/logger.middleware.js";
 const app = express();
 
 // ─── Core Middleware ───────────────────────────────────────────────────────────
-app.use(cors({
-  origin: process.env.FRONTEND_URL || "http://localhost:3000",
-  credentials: true,
-}));
+app.use(
+	cors({
+		origin: process.env.FRONTEND_URL || "http://localhost:3000",
+		credentials: true,
+	}),
+);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(requestLogger);
@@ -32,10 +35,11 @@ app.use("/api/v1/payroll", payrollRoutes);
 app.use("/api/v1/library", libraryRoutes);
 app.use("/api/v1/finance", financeRoutes);
 app.use("/api/v1/attendance", attendanceRoutes);
+app.use("/api/v1/research", researchRoutes);
 
 // ─── Health Check ─────────────────────────────────────────────────────────────
 app.get("/health", (req, res) => {
-  res.status(200).json({ status: "ok", timestamp: new Date().toISOString() });
+	res.status(200).json({ status: "ok", timestamp: new Date().toISOString() });
 });
 
 // ─── Error Handler (must be last) ─────────────────────────────────────────────
