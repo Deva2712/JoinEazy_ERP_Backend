@@ -10,6 +10,7 @@ import libraryRoutes from "./modules/library/library-routes.js";
 import financeRoutes from "./modules/finance/finance-routes.js";
 import attendanceRoutes from "./modules/attendance/attendance-routes.js";
 import researchRoutes from "./modules/research/research-routes.js";
+import examDutiesRoutes from "./modules/exam-duties/exam-duties-routes.js";
 
 // Middleware imports
 import { errorHandler } from "./middleware/error.middleware.js";
@@ -36,6 +37,7 @@ app.use("/api/v1/library", libraryRoutes);
 app.use("/api/v1/finance", financeRoutes);
 app.use("/api/v1/attendance", attendanceRoutes);
 app.use("/api/v1/research", researchRoutes);
+app.use("/api/v1/exam-duties", examDutiesRoutes);
 
 // ─── Health Check ─────────────────────────────────────────────────────────────
 app.get("/health", (req, res) => {
