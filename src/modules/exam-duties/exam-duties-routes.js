@@ -1,5 +1,5 @@
 import express from "express";
-import { getDuties, updateDutyStatus } from "./exam-controller.js";
+import { getDuties, updateDutyStatus } from "./exam-duties-controller.js";
 import { protect } from "../../middleware/auth.middleware.js";
 
 const router = express.Router();
