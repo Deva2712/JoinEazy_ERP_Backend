@@ -3,7 +3,7 @@ import {
 	ResearchApplication,
 	GrantRequest,
 } from "./research-model.js";
-import { User } from "../auth/user-model.js";
+import User from "../auth/auth-model.js";
 import sequelize from "../../database/connection.js";
 
 /**

@@ -1,6 +1,6 @@
 import { DataTypes } from "sequelize";
 import sequelize from "../../database/connection.js";
-import { User } from "../auth/user-model.js";
+import User from "../auth/auth-model.js";
 
 /**
  * Main table for Research Projects and Publications.
