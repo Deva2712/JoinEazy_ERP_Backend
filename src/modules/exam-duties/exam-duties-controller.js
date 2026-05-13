@@ -1,4 +1,4 @@
-import * as service from "./exam-service.js";
+import * as service from "./exam-duties-service.js";
 import { asyncHandler } from "../../middleware/error.middleware.js";
 
 export const getDuties = asyncHandler(async (req, res) => {

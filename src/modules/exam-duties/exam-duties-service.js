@@ -1,4 +1,4 @@
-import ExamDuty from "./exam-model.js";
+import ExamDuty from "./exam-duties-model.js";
 
 export const getDutySchedule = async (userId) => {
 	return await ExamDuty.findAll({
