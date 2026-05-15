@@ -14,6 +14,7 @@ import examDutiesRoutes from "./modules/exam-duties/exam-duties-routes.js";
 import leaveRoutes from "./modules/leave/leave-routes.js";
 import mentoringRoutes from "./modules/mentoring/mentoring-routes.js";
 import scheduleRoutes from "./modules/schedule/schedule-routes.js";
+// import cohortRoutes from "./modules/cohort/cohort-routes.js";
 
 // Middleware imports
 import { errorHandler } from "./middleware/error.middleware.js";
@@ -44,6 +45,7 @@ app.use("/api/v1/exam-duties", examDutiesRoutes);
 app.use("/api/v1/leave", leaveRoutes);
 app.use("/api/v1/mentoring", mentoringRoutes);
 app.use("/api/v1/schedule", scheduleRoutes);
+// app.use("/api/v1/cohorts", cohortRoutes);
 
 // ─── Health Check ─────────────────────────────────────────────────────────────
 app.get("/health", (req, res) => {
