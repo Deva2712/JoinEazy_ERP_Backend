@@ -8,15 +8,13 @@ export const getMentees = asyncHandler(async (req, res) => {
 });
 
 // Updates attendance status for a specific mentoring session
-export const updateAttendance = asyncHandler(
-	async(async (req, res) => {
-		const { id } = req.params;
-		const { hasAttended } = req.body;
+export const updateAttendance = asyncHandler(async (req, res) => {
+	const { id } = req.params;
+	const { hasAttended } = req.body;
 
-		const result = await MentoringService.markAttendance(id, hasAttended);
-		res.status(200).json({ success: true, message: "Attendance updated." });
-	}),
-);
+	const result = await MentoringService.markAttendance(id, hasAttended);
+	res.status(200).json({ success: true, message: "Attendance updated." });
+});
 
 // Submits the final discussion summary and performance metrics
 export const completeMeeting = asyncHandler(async (req, res) => {
