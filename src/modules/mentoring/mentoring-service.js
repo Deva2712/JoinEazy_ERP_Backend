@@ -1,5 +1,5 @@
 import { MentoringMeeting, MenteeProfile } from "./mentoring-model.js";
-import { User } from "../auth/auth-model.js";
+import User from "../auth/auth-model.js";
 
 /**
  * Logic for managing faculty-student mentoring data via database models.
