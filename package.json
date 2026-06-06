@@ -13,10 +13,12 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.600.0",
     "bcryptjs": "^2.4.3",
+    "compression": "^1.8.1",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.21.0",
     "jsonwebtoken": "^9.0.2",
+    "node-cron": "^4.2.1",
     "nodemailer": "^6.9.14",
     "pg": "^8.13.0",
     "sequelize": "^6.37.0",
