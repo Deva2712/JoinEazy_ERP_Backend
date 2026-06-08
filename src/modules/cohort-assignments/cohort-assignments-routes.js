@@ -5,12 +5,9 @@ import { protect, authorize } from "../../middleware/auth.middleware.js";
 import * as controller from "./cohort-assignments-controller.js";
 
 const router = express.Router({ mergeParams: true });
-// mergeParams: true needed — mounted with :cohortId param in app.js
-// app.use("/api/v1/cohort/:cohortId/assignments", assignmentRoutes)
 
 router.use(protect);
 
-// ── Submission status must come BEFORE /:assignmentId to avoid route conflict ─
 // GET /api/v1/cohort/:cohortId/assignments/submissions/status
 router.get("/submissions/status", controller.getSubmissionStatus);
 
@@ -19,13 +16,13 @@ router.get("/submissions/status", controller.getSubmissionStatus);
 router.get("/", controller.getAssignments);
 
 // POST /api/v1/cohort/:cohortId/assignments  (professor only)
-router.post("/", authorize("professor", "admin", "staff"), controller.createAssignment);
+router.post("/", authorize("professor", "admin"), controller.createAssignment);
 
 // PUT  /api/v1/cohort/:cohortId/assignments/:assignmentId  (professor only)
-router.put("/:assignmentId", authorize("professor", "admin", "staff"), controller.updateAssignment);
+router.put("/:assignmentId", authorize("professor", "admin"), controller.updateAssignment);
 
 // DELETE /api/v1/cohort/:cohortId/assignments/:assignmentId  (professor only)
-router.delete("/:assignmentId", authorize("professor", "admin", "staff"), controller.deleteAssignment);
+router.delete("/:assignmentId", authorize("professor", "admin"), controller.deleteAssignment);
 
 // ── Submissions ───────────────────────────────────────────────────────────────
 // POST   /api/v1/cohort/:cohortId/assignments/:assignmentId/submit  (student submits)

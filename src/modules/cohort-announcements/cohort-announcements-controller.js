@@ -7,7 +7,7 @@ import * as service from "./cohort-announcements-service.js";
 export const getAnnouncements = asyncHandler(async (req, res) => {
   const { cohortId } = req.params;
   const requestingUserId = req.user.id;
-  // FIX: pass ?archived=true to include archived announcements
+ 
   const includeArchived = req.query.archived === "true";
 
   const data = await service.getAnnouncements(cohortId, requestingUserId, includeArchived);
@@ -54,7 +54,6 @@ export const togglePin = asyncHandler(async (req, res) => {
   const { cohortId, announcementId } = req.params;
   const { is_pinned } = req.body;
 
-  // FIX: validate body — is_pinned must be a boolean
   if (typeof is_pinned !== "boolean") {
     return res.status(400).json({ success: false, message: "is_pinned must be a boolean" });
   }
@@ -68,7 +67,6 @@ export const toggleLock = asyncHandler(async (req, res) => {
   const { cohortId, announcementId } = req.params;
   const { is_locked } = req.body;
 
-  // FIX: validate body — is_locked must be a boolean
   if (typeof is_locked !== "boolean") {
     return res.status(400).json({ success: false, message: "is_locked must be a boolean" });
   }

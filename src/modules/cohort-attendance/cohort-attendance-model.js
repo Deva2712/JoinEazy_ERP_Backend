@@ -3,7 +3,7 @@
 import { DataTypes } from "sequelize";
 import sequelize from "../../database/connection.js";
 
-// ─── AttendanceLog: ek din ki ek class ki entry ───────────────────────────────
+
 const AttendanceLog = sequelize.define(
   "AttendanceLog",
   {

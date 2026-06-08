@@ -11,10 +11,8 @@ export const getAttendanceLogs = async (cohortId) => {
     order: [["date", "DESC"]],
   });
 
-  // Transform logs into { date: [presentStudentIds] } format for frontend
   const logsMap = {};
   let isFinal = false;
-
   const todayStr = new Date().toISOString().split("T")[0];
 
   logs.forEach((log) => {
@@ -28,14 +26,13 @@ export const getAttendanceLogs = async (cohortId) => {
     }
   });
 
-  // Get unique students from all records
   const studentMap = new Map();
   logs.forEach((log) => {
     log.records.forEach((r) => {
       if (!studentMap.has(r.student_id)) {
         studentMap.set(r.student_id, {
-          id: r.student_id,
-          name: r.student_name,
+          id:         r.student_id,
+          name:       r.student_name,
           rollNumber: r.roll_number,
           department: r.department,
         });
@@ -47,14 +44,13 @@ export const getAttendanceLogs = async (cohortId) => {
     status: "success",
     data: {
       students: Array.from(studentMap.values()),
-      logs: logsMap,
+      logs:     logsMap,
       isFinal,
     },
   };
 };
 
 // ─── GET /professor/logs ──────────────────────────────────────────────────────
-// Professor's own attendance logs — check-in/check-out style
 export const getProfessorLogs = async (professorId) => {
   const logs = await AttendanceLog.findAll({
     where: { professor_id: professorId },
@@ -65,28 +61,58 @@ export const getProfessorLogs = async (professorId) => {
   return {
     status: "success",
     data: logs.map((log) => ({
-      id: log.id,
-      date: log.date,
-      courseId: log.course_id,
-      cohortId: log.cohort_id,
-      status: log.status,
+      id:        log.id,
+      date:      log.date,
+      courseId:  log.course_id,
+      cohortId:  log.cohort_id,
+      status:    log.status,
       createdAt: log.created_at,
     })),
   };
 };
 
 // ─── POST /courses/:courseId/attendance ───────────────────────────────────────
-// Payload: { studentIds: [uuid, ...], date: "2026-06-06", status: "final" }
-// studentIds = present student IDs — absent = everyone else in cohort
-export const markAttendance = async (courseId, data, professor, cohortId, allStudents = []) => {
+// Frontend sends: { studentIds: [...], date: "2026-06-06", status: "final" }
+// FIX: allStudents fetch from previous attendance records for this cohort
+//      so we dont need frontend to send allStudents
+export const markAttendance = async (courseId, data, professor, cohortId) => {
   const { studentIds: presentIds = [], date, status = "final" } = data;
 
-  // Upsert the log — agar aaj ka log already hai toh update karo
+  // FIX: Fetch all known students for this cohort from past attendance records
+  // This avoids needing frontend to send allStudents in body
+  const existingRecords = await AttendanceRecord.findAll({
+    include: [{
+      model: AttendanceLog,
+      as: "log",
+      where: { cohort_id: cohortId },
+      attributes: [],
+    }],
+    attributes: ["student_id", "student_name", "roll_number", "department"],
+    group: ["student_id", "student_name", "roll_number", "department"],
+  });
+
+  // Also include any new presentIds that may not be in past records
+  const knownStudentMap = new Map();
+  existingRecords.forEach((r) => {
+    knownStudentMap.set(r.student_id, {
+      id:          r.student_id,
+      name:        r.student_name,
+      roll_number: r.roll_number,
+      department:  r.department,
+    });
+  });
+
+  // If no known students, use presentIds as the full list (first time marking)
+  const allStudents = knownStudentMap.size > 0
+    ? Array.from(knownStudentMap.values())
+    : presentIds.map((id) => ({ id, name: "Unknown", roll_number: null, department: null }));
+
+  // Upsert log — if today's log already exists, update it
   const [log] = await AttendanceLog.upsert(
     {
-      cohort_id: cohortId,
-      course_id: courseId,
-      professor_id: professor.id,
+      cohort_id:      cohortId,
+      course_id:      courseId,
+      professor_id:   professor.id,
       professor_name: professor.name,
       date,
       status,
@@ -94,17 +120,16 @@ export const markAttendance = async (courseId, data, professor, cohortId, allStu
     { conflictFields: ["course_id", "date"] }
   );
 
-  // Delete old records for this log and recreate — cleanest approach
+  // Delete and recreate records — cleanest approach
   await AttendanceRecord.destroy({ where: { log_id: log.id } });
 
-  // Build records for all students
   const records = allStudents.map((student) => ({
-    log_id: log.id,
-    student_id: student.id,
+    log_id:       log.id,
+    student_id:   student.id,
     student_name: student.name,
-    roll_number: student.rollNumber || student.roll_number || null,
-    department: student.department || null,
-    is_present: presentIds.includes(student.id),
+    roll_number:  student.roll_number || null,
+    department:   student.department || null,
+    is_present:   presentIds.includes(student.id),
   }));
 
   if (records.length > 0) {
@@ -114,12 +139,12 @@ export const markAttendance = async (courseId, data, professor, cohortId, allStu
   return {
     status: "success",
     data: {
-      logId: log.id,
-      date: log.date,
+      logId:        log.id,
+      date:         log.date,
       courseId,
       presentCount: presentIds.length,
-      totalCount: allStudents.length,
-      status: log.status,
+      totalCount:   allStudents.length,
+      status:       log.status,
     },
   };
 };

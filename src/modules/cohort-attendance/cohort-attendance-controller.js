@@ -17,27 +17,15 @@ export const getProfessorLogs = asyncHandler(async (req, res) => {
 });
 
 // POST /courses/:courseId/attendance
-// Body: { studentIds: [...], date: "2026-06-06", status: "final" }
-// Query: ?cohortId=xxx  (required — needed to scope the log)
 export const markAttendance = asyncHandler(async (req, res) => {
   const { courseId } = req.params;
-  const cohortId = req.query.cohortId || req.body.cohortId;
 
-  if (!cohortId) {
-    return res.status(400).json({ success: false, message: "cohortId is required" });
-  }
+  // cohortId = from query param OR body OR fallback to courseId itself
+ 
+  const cohortId = req.query.cohortId || req.body.cohortId || courseId;
 
   const professor = { id: req.user.id, name: req.user.name };
 
-  // allStudents should come from body — frontend sends them or we fetch from cohort members
-  const allStudents = req.body.allStudents || [];
-
-  const result = await service.markAttendance(
-    courseId,
-    req.body,
-    professor,
-    cohortId,
-    allStudents
-  );
+  const result = await service.markAttendance(courseId, req.body, professor, cohortId);
   res.status(200).json(result);
 });

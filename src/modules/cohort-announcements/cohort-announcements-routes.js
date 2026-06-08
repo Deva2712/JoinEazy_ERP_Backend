@@ -5,8 +5,7 @@ import { protect, authorize } from "../../middleware/auth.middleware.js";
 import * as controller from "./cohort-announcements-controller.js";
 
 const router = express.Router({ mergeParams: true });
-// mergeParams: true is needed because this router is mounted with :cohortId param
-// i.e. app.use("/api/v1/cohort/:cohortId", announcementRoutes)
+
 
 // ─── All routes require authentication ───────────────────────────────────────
 router.use(protect);
@@ -18,21 +17,21 @@ router.get("/", controller.getAnnouncements);
 // POST   /api/v1/cohort/:cohortId/announcements  (professor/admin only)
 router.post(
   "/",
-  authorize("professor", "admin", "staff"),
+  authorize("professor", "admin"),
   controller.createAnnouncement
 );
 
 // PUT    /api/v1/cohort/:cohortId/announcements/:announcementId
 router.put(
   "/:announcementId",
-  authorize("professor", "admin", "staff"),
+  authorize("professor", "admin"),
   controller.updateAnnouncement
 );
 
 // DELETE /api/v1/cohort/:cohortId/announcements/:announcementId
 router.delete(
   "/:announcementId",
-  authorize("professor", "admin", "staff"),
+  authorize("professor", "admin"),
   controller.deleteAnnouncement
 );
 
@@ -40,21 +39,21 @@ router.delete(
 // PATCH  /api/v1/cohort/:cohortId/announcements/:announcementId/pin
 router.patch(
   "/:announcementId/pin",
-  authorize("professor", "admin", "staff"),
+  authorize("professor", "admin"),
   controller.togglePin
 );
 
 // PATCH  /api/v1/cohort/:cohortId/announcements/:announcementId/lock
 router.patch(
   "/:announcementId/lock",
-  authorize("professor", "admin", "staff"),
+  authorize("professor", "admin"),
   controller.toggleLock
 );
 
 // PATCH  /api/v1/cohort/:cohortId/announcements/:announcementId/archive
 router.patch(
   "/:announcementId/archive",
-  authorize("professor", "admin", "staff"),
+  authorize("professor", "admin"),
   controller.archiveAnnouncement
 );
 

@@ -2,8 +2,38 @@
 
 import { CohortAssignment, AssignmentSubmission } from "./cohort-assignments-model.js";
 
+// ─── Helper: transform to frontend shape ─────────────────────────────────────
+const toFrontendShape = (a, currentUserId = null) => {
+  const json = a.toJSON ? a.toJSON() : a;
+  const submissions = json.submissions || [];
+
+  // Check if current user has submitted
+  const mySubmission = currentUserId
+    ? submissions.find((s) => s.student_id === currentUserId)
+    : null;
+
+  return {
+    id:             json.id,
+    name:           json.title,        
+    title:          json.title,
+    description:    json.description,
+    deadline:       json.deadline,
+    dueDate:        json.deadline,     
+    marks:          String(json.marks || "10"), // frontend expects string
+    type:           json.type,
+    status:         mySubmission ? "submitted" : "pending",  
+    submittedAt:    mySubmission ? mySubmission.submitted_at : null, 
+    submissions:    submissions,
+    created_at:     json.created_at,
+    createdAt:      json.created_at,
+    cohort_id:      json.cohort_id,
+    cohortId:       json.cohort_id,
+    submissionLink: json.submission_link || "",
+  };
+};
+
 // ─── GET all assignments for a cohort ────────────────────────────────────────
-export const getAssignments = async (cohortId) => {
+export const getAssignments = async (cohortId, currentUserId = null) => {
   const assignments = await CohortAssignment.findAll({
     where: { cohort_id: cohortId },
     include: [
@@ -16,23 +46,23 @@ export const getAssignments = async (cohortId) => {
     order: [["created_at", "DESC"]],
   });
 
-  return { assignments: assignments.map((a) => a.toJSON()) };
+  return { assignments: assignments.map((a) => toFrontendShape(a, currentUserId)) };
 };
 
 // ─── CREATE assignment ────────────────────────────────────────────────────────
 export const createAssignment = async (cohortId, data, authorId) => {
   const assignment = await CohortAssignment.create({
-    cohort_id: cohortId,
-    author_id: authorId,
-    title: data.title || data.name,
-    description: data.description || null,
-    type: data.type || "individual",
-    deadline: data.deadline || null,
-    marks: data.marks || 10,
+    cohort_id:       cohortId,
+    author_id:       authorId,
+    title:           data.title || data.name,
+    description:     data.description || null,
+    type:            data.type || "individual",
+    deadline:        data.deadline || null,
+    marks:           data.marks || 10,
     submission_link: data.submissionLink || data.submission_link || null,
   });
 
-  return assignment.toJSON();
+  return toFrontendShape({ ...assignment.toJSON(), submissions: [] });
 };
 
 // ─── UPDATE assignment ────────────────────────────────────────────────────────
@@ -42,15 +72,10 @@ export const updateAssignment = async (cohortId, assignmentId, data, authorId) =
   });
 
   if (!assignment) {
-    const err = new Error("Assignment not found");
-    err.statusCode = 404;
-    throw err;
+    const err = new Error("Assignment not found"); err.statusCode = 404; throw err;
   }
-
   if (assignment.author_id !== authorId) {
-    const err = new Error("Not authorized to edit this assignment");
-    err.statusCode = 403;
-    throw err;
+    const err = new Error("Not authorized"); err.statusCode = 403; throw err;
   }
 
   await assignment.update({
@@ -62,7 +87,7 @@ export const updateAssignment = async (cohortId, assignmentId, data, authorId) =
     submission_link: data.submissionLink ?? data.submission_link ?? assignment.submission_link,
   });
 
-  return assignment.toJSON();
+  return toFrontendShape({ ...assignment.toJSON(), submissions: [] });
 };
 
 // ─── DELETE assignment ────────────────────────────────────────────────────────
@@ -72,39 +97,29 @@ export const deleteAssignment = async (cohortId, assignmentId, authorId, userRol
   });
 
   if (!assignment) {
-    const err = new Error("Assignment not found");
-    err.statusCode = 404;
-    throw err;
+    const err = new Error("Assignment not found"); err.statusCode = 404; throw err;
   }
-
   if (assignment.author_id !== authorId && userRole !== "admin") {
-    const err = new Error("Not authorized to delete this assignment");
-    err.statusCode = 403;
-    throw err;
+    const err = new Error("Not authorized"); err.statusCode = 403; throw err;
   }
 
   await assignment.destroy();
   return { deleted: true };
 };
 
-// ─── SUBMIT assignment (student marks as submitted) ───────────────────────────
+// ─── SUBMIT assignment ────────────────────────────────────────────────────────
 export const submitAssignment = async (cohortId, assignmentId, student) => {
   const assignment = await CohortAssignment.findOne({
     where: { id: assignmentId, cohort_id: cohortId },
   });
 
   if (!assignment) {
-    const err = new Error("Assignment not found");
-    err.statusCode = 404;
-    throw err;
+    const err = new Error("Assignment not found"); err.statusCode = 404; throw err;
   }
 
   const [submission, created] = await AssignmentSubmission.findOrCreate({
     where: { assignment_id: assignmentId, student_id: student.id },
-    defaults: {
-      student_name: student.name,
-      submitted_at: new Date(),
-    },
+    defaults: { student_name: student.name, submitted_at: new Date() },
   });
 
   return { submission: submission.toJSON(), already_submitted: !created };
@@ -117,16 +132,14 @@ export const unsubmitAssignment = async (cohortId, assignmentId, studentId) => {
   });
 
   if (!submission) {
-    const err = new Error("Submission not found");
-    err.statusCode = 404;
-    throw err;
+    const err = new Error("Submission not found"); err.statusCode = 404; throw err;
   }
 
   await submission.destroy();
   return { deleted: true };
 };
 
-// ─── GET submission status for current user ───────────────────────────────────
+// ─── GET submission status ────────────────────────────────────────────────────
 export const getSubmissionStatus = async (cohortId, studentId, assignmentIds = null) => {
   const { Op } = await import("sequelize");
   const where = { student_id: studentId };
@@ -146,24 +159,22 @@ export const getSubmissionStatus = async (cohortId, studentId, assignmentIds = n
   const statusMap = {};
   submissions.forEach((s) => {
     statusMap[s.assignment_id] = {
-      submitted: true,
-      submitted_at: s.submitted_at,
+      submitted:     true,
+      submitted_at:  s.submitted_at,
       marks_awarded: s.marks_awarded,
     };
   });
   return statusMap;
 };
 
-// ─── GET all submissions for an assignment (professor view) ───────────────────
+// ─── GET all submissions (professor) ─────────────────────────────────────────
 export const getAssignmentSubmissions = async (cohortId, assignmentId) => {
   const assignment = await CohortAssignment.findOne({
     where: { id: assignmentId, cohort_id: cohortId },
   });
 
   if (!assignment) {
-    const err = new Error("Assignment not found");
-    err.statusCode = 404;
-    throw err;
+    const err = new Error("Assignment not found"); err.statusCode = 404; throw err;
   }
 
   const submissions = await AssignmentSubmission.findAll({
@@ -181,9 +192,7 @@ export const gradeAssignment = async (assignmentId, studentId, marksAwarded, com
   });
 
   if (!submission) {
-    const err = new Error("Submission not found");
-    err.statusCode = 404;
-    throw err;
+    const err = new Error("Submission not found"); err.statusCode = 404; throw err;
   }
 
   await submission.update({ marks_awarded: marksAwarded, grade_comments: comments });
