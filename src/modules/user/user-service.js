@@ -1,7 +1,10 @@
 import User from "../auth/auth-model.js";
 
-export const getAllUsers = async () => {
+export const getAllUsers = async (filters = {}) => {
+  const where = {};
+  if (filters.role) where.role = filters.role;
   return User.findAll({
+    where,
     attributes: { exclude: ["password"] },
   });
 };

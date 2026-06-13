@@ -5,7 +5,7 @@ import sequelize from "../../database/connection.js";
 const CohortEvent = sequelize.define("CohortEvent", {
   id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
 
-  cohort_id: { type: DataTypes.UUID, allowNull: false },
+  cohort_id: { type: DataTypes.STRING, allowNull: false },
   created_by: { type: DataTypes.UUID, allowNull: false },
   created_by_name: { type: DataTypes.STRING, allowNull: true },
   title: { type: DataTypes.STRING, allowNull: false },

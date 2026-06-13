@@ -4,7 +4,7 @@ import sequelize from "../../database/connection.js";
 // ─── CohortCourse (submission/project based — what frontend calls "Courses") ──
 const CohortCourse = sequelize.define("CohortCourse", {
   id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
-  cohort_id: { type: DataTypes.UUID, allowNull: false },
+  cohort_id: { type: DataTypes.STRING, allowNull: false },
   created_by: { type: DataTypes.UUID, allowNull: false },
   title: { type: DataTypes.STRING, allowNull: false },
   description: { type: DataTypes.TEXT, allowNull: true },
