@@ -11,7 +11,7 @@ const Cohort = sequelize.define("Cohort", {
   },
   cohort_name:        { type: DataTypes.STRING, allowNull: false },
   cohort_description: { type: DataTypes.TEXT, allowNull: true },
-  course_codes:       { type: DataTypes.JSON, allowNull: true, defaultValue: [] },
+  course_codes:       { type: DataTypes.STRING, allowNull: true, defaultValue: null },
   slug:               { type: DataTypes.STRING, allowNull: true, unique: true },
   organization_name:  { type: DataTypes.STRING, defaultValue: "Mahindra University" },
   instructor:         { type: DataTypes.STRING, allowNull: true },

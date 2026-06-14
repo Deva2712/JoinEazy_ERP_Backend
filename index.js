@@ -17,6 +17,10 @@ import "./src/modules/cohort-notes/cohort-notes-model.js";
 import "./src/modules/cohort-members/cohort-members-model.js";
 import "./src/modules/cohort-meetings/cohort-meetings-model.js";
 import "./src/modules/bulletins/bulletins-model.js";
+import "./src/modules/notifications/notifications-model.js";
+import "./src/modules/registrar/registrar-model.js";
+import "./src/modules/student-profile/student-profile-model.js";
+import "./src/modules/bug-reports/bug-reports-model.js";
 import "./src/modules/expenses/expenses-model.js";
 import "./src/modules/advances/advances-model.js";
 import "./src/modules/maintenance/maintenance-model.js";
@@ -35,8 +39,6 @@ import "./src/modules/asset-request/asset-request-model.js";
 import "./src/modules/courses/courses-model.js";
 import "./src/modules/attendance/attendance-model.js";
 import "./src/modules/revaluation/revaluation-model.js";
-import "./src/modules/registrar/registrar-model.js";
-
 
 
 const PORT = process.env.PORT || 8000;

@@ -34,7 +34,8 @@ import studentCourseRoutes from "./modules/courses/courses-routes.js";
 import dashboardRoutes    from "./modules/dashboard/dashboard-routes.js";
 import studentRoutes      from "./modules/attendance/attendance-routes.js";
 import registrarRoutes from "./modules/registrar/registrar-routes.js";
-import lorRoutes from "./modules/registrar/lor-routes.js";
+import studentProfileRoutes from "./modules/student-profile/student-profile-routes.js";
+
 
 import expensesRoutes from "./modules/expenses/expenses-routes.js";
 import advancesRoutes from "./modules/advances/advances-routes.js";
@@ -53,14 +54,13 @@ app.use(requestLogger);
 // Auth & Users
 app.use("/api/v1/auth",  authRoutes);
 app.use("/api/v1/users", userRoutes);
+app.use("/api/v1/user", userRoutes); // singular alias — frontend uses /user/settings, /user/details
 
 // Grade route — MUST be before /:cohortId/assignments to avoid conflict
 app.use("/api/v1/cohort/assignments", assignmentGradeRoutes);
 
 // Cohort sub-modules
 app.use("/api/v1/cohort/:cohortId/announcements", announcementRoutes);
-// ← FIX: discussions route — same controller as announcements, returns [] when empty
-app.use("/api/v1/cohort/:cohortId/discussions",   announcementRoutes);
 app.use("/api/v1/bulletins",                       bulletinRoutes);
 app.use("/api/v1/cohort/:cohortId/assignments",   assignmentRoutes);
 app.use("/api/v1/cohort/:cohortId/posts",         boardRoutes);
@@ -72,7 +72,7 @@ app.use("/api/v1/cohort/:cohortId/meetings",  meetingsRoutes);
 app.use("/api/v1/cohort/:cohortId/courses",   courseRoutes);
 app.use("/api/v1/cohort",                     cohortRoutes);
 
-// Attendance
+// Attendance — /api/v1/attendance/logs/:cohortId, /api/v1/professor/logs, /api/v1/courses/:courseId/attendance
 app.use("/api/v1", attendanceRoutes);
 
 // ─── Other modules ────────────────────────────────────────────────────────────
@@ -85,7 +85,9 @@ app.use("/api/v1/advances", advancesRoutes);
 app.use("/api/v1/finance", financeRoutes);
 app.use("/api/v1/professor", scheduleRoutes);
 app.use("/api/v1/payroll", payrollRoutes);
+
 app.use("/api/v1/notifications", notificationRoutes);
+app.use("/api/v1/student/notifications", notificationRoutes);
 app.use("/api/v1/research", researchRoutes);
 app.use("/api/v1/mentor", mentoringRoutes);
 app.use("/api/v1/sessions", sessionRoutes);
@@ -93,10 +95,13 @@ app.use("/api/v1/assets", assetRoutes);
 app.use("/api/v1/student/courses", studentCourseRoutes);
 app.use("/api/v1/user", dashboardRoutes);
 app.use("/api/v1/student", studentRoutes);
-app.use("/api/v1/registrar", registrarRoutes);
-app.use("/api/v1/lor", lorRoutes);
+
+
 app.use("/api/v1/professor", revalProfRoutes);
 app.use("/api/v1/student",   revalStudentRoutes);
+
+app.use("/api/v1/registrar", registrarRoutes);
+app.use("/api/v1/student", studentProfileRoutes);
 
 app.get("/health", (req, res) =>
   res.status(200).json({ status: "ok", timestamp: new Date().toISOString() })
