@@ -12,14 +12,14 @@ export const getResources = async (cohortId) => {
 
 export const createWeek = async (cohortId, data) => {
   const count = await ResourceWeek.count({ where: { cohort_id: cohortId } });
-  const week = await ResourceWeek.create({ cohort_id: cohortId, title: data.title, order: data.order ?? count });
+  const week = await ResourceWeek.create({ cohort_id: cohortId, title: data.title, dateRange: data.dateRange || null, order: data.order ?? count });
   return { ...week.toJSON(), resources: [] };
 };
 
 export const updateWeek = async (cohortId, weekId, data) => {
   const week = await ResourceWeek.findOne({ where: { id: weekId, cohort_id: cohortId } });
   if (!week) { const e = new Error("Week not found"); e.statusCode = 404; throw e; }
-  await week.update({ title: data.title ?? week.title, order: data.order ?? week.order });
+  await week.update({ title: data.title ?? week.title, dateRange: data.dateRange ?? week.dateRange, order: data.order ?? week.order });
   return week.toJSON();
 };
 
