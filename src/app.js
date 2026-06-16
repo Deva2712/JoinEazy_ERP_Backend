@@ -35,7 +35,9 @@ import dashboardRoutes    from "./modules/dashboard/dashboard-routes.js";
 import studentRoutes      from "./modules/attendance/attendance-routes.js";
 import registrarRoutes from "./modules/registrar/registrar-routes.js";
 import studentProfileRoutes from "./modules/student-profile/student-profile-routes.js";
-
+import calendarRoutes from "./modules/calendar/calendar-routes.js";
+import materialsRoutes from "./modules/cohort-materials/cohort-materials-routes.js";
+import discussionsRoutes from "./modules/cohort-discussions/cohort-discussions-routes.js";
 
 import expensesRoutes from "./modules/expenses/expenses-routes.js";
 import advancesRoutes from "./modules/advances/advances-routes.js";
@@ -69,6 +71,8 @@ app.use("/api/v1/cohort/:cohortId/members",   membersRoutes);
 app.use("/api/v1/cohort/:cohortId/notes",     notesRoutes);
 app.use("/api/v1/cohort/:cohortId/resources", resourcesRoutes);
 app.use("/api/v1/cohort/:cohortId/meetings",  meetingsRoutes);
+app.use("/api/v1/cohort/:cohortId/materials",     materialsRoutes);
+app.use("/api/v1/cohort/:cohortId/discussions",   discussionsRoutes);
 app.use("/api/v1/cohort/:cohortId/courses",   courseRoutes);
 app.use("/api/v1/cohort",                     cohortRoutes);
 
@@ -97,6 +101,8 @@ app.use("/api/v1/user", dashboardRoutes);
 app.use("/api/v1/student", studentRoutes);
 
 
+
+app.use("/api/v1/calendar", calendarRoutes);
 app.use("/api/v1/professor", revalProfRoutes);
 app.use("/api/v1/student",   revalStudentRoutes);
 
