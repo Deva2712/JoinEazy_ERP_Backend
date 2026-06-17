@@ -42,7 +42,7 @@ import "./src/modules/revaluation/revaluation-model.js";
 import "./src/modules/calendar/calendar-model.js";
 import "./src/modules/cohort-materials/cohort-materials-model.js";
 import "./src/modules/cohort-discussions/cohort-discussions-model.js";
-
+import "./src/modules/job-tray/job-tray-model.js";
 
 const PORT = process.env.PORT || 8000;
 

@@ -38,7 +38,7 @@ import studentProfileRoutes from "./modules/student-profile/student-profile-rout
 import calendarRoutes from "./modules/calendar/calendar-routes.js";
 import materialsRoutes from "./modules/cohort-materials/cohort-materials-routes.js";
 import discussionsRoutes from "./modules/cohort-discussions/cohort-discussions-routes.js";
-
+import jobTrayRoutes from "./modules/job-tray/job-tray-routes.js";
 import expensesRoutes from "./modules/expenses/expenses-routes.js";
 import advancesRoutes from "./modules/advances/advances-routes.js";
 import { professorRouter as revalProfRoutes, studentRouter as revalStudentRoutes } from "./modules/revaluation/revaluation-routes.js";
@@ -99,6 +99,7 @@ app.use("/api/v1/assets", assetRoutes);
 app.use("/api/v1/student/courses", studentCourseRoutes);
 app.use("/api/v1/user", dashboardRoutes);
 app.use("/api/v1/student", studentRoutes);
+app.use("/api/v1", jobTrayRoutes);
 
 
 
