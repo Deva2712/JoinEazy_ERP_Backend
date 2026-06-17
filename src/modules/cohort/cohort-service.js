@@ -110,9 +110,9 @@ export const getArchivedCohorts = async (userId) => {
 export const createCohort = async (data, creator) => {
   const slug = generateSlug(data.cohort_name || data.name || "cohort");
   // FIX: ensure course_codes stored as array
-  const course_codes = Array.isArray(data.course_codes)
-    ? data.course_codes
-    : (data.course_codes ? [data.course_codes] : []);
+const course_codes = Array.isArray(data.course_codes)
+    ? data.course_codes.join(",")
+    : (data.course_codes || null);
 
   const cohort = await Cohort.create({
     cohort_name:        data.cohort_name || data.name,
@@ -145,12 +145,12 @@ export const updateCohort = async (cohortId, data, userId) => {
   if (cohort.creator_id !== userId) { const e = new Error("Not authorized"); e.statusCode = 403; throw e; }
 
   // FIX: ensure course_codes stored as array
-  let course_codes = cohort.course_codes;
-  if (data.course_codes !== undefined) {
+let course_codes = cohort.course_codes;
+if (data.course_codes !== undefined) {
     course_codes = Array.isArray(data.course_codes)
-      ? data.course_codes
-      : (data.course_codes ? [data.course_codes] : []);
-  }
+        ? data.course_codes.join(",")
+        : (data.course_codes || null);
+}
 
   await cohort.update({
     cohort_name:        data.cohort_name        ?? cohort.cohort_name,
