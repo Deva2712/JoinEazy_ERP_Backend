@@ -332,16 +332,32 @@ export const joinWithInvitation = async (token, user) => {
 
 // ─── PARTICIPANTS (Excel upload) ──────────────────────────────────────────────
 export const uploadParticipants = async (cohortId, participants) => {
+   
+  const User = (await import("../auth/auth-model.js")).default;
+
   const results = await Promise.all(
-    participants.map((p) =>
-      CohortParticipant.findOrCreate({
+    participants.map(async (p) => {
+      // ADD: email se user dhundho
+      const user = await User.findOne({ where: { email: p.email } });
+
+      return CohortParticipant.findOrCreate({
         where: { cohort_id: cohortId, email: p.email },
-        defaults: { display_name: p.display_name || p.name, username: p.username || p.name, roll_number: p.roll_number || null, is_active: true },
-      })
-    )
+        defaults: {
+          user_id:      user?.id || null,      
+          display_name: p.display_name || p.name || user?.name,
+          username:     p.username || p.name || user?.name,
+          roll_number:  p.roll_number || null,
+          is_active:    true,
+        },
+      });
+    })
   );
+
   const added = results.filter(([, created]) => created).length;
-  await Cohort.update({ member_count: await CohortParticipant.count({ where: { cohort_id: cohortId } }) }, { where: { id: cohortId } });
+  await Cohort.update(
+    { member_count: await CohortParticipant.count({ where: { cohort_id: cohortId } }) },
+    { where: { id: cohortId } }
+  );
   return { added, total: participants.length };
 };
 

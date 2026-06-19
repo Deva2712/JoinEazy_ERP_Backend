@@ -44,6 +44,8 @@ import advancesRoutes from "./modules/advances/advances-routes.js";
 import { professorRouter as revalProfRoutes, studentRouter as revalStudentRoutes } from "./modules/revaluation/revaluation-routes.js";
 import { errorHandler }  from "./middleware/error.middleware.js";
 import { requestLogger }   from "./middleware/logger.middleware.js";
+import studentSessionsRoutes from "./modules/session-planning/student-sessions-routes.js";
+
 
 const app = express();
 
@@ -95,6 +97,7 @@ app.use("/api/v1/student/notifications", notificationRoutes);
 app.use("/api/v1/research", researchRoutes);
 app.use("/api/v1/mentor", mentoringRoutes);
 app.use("/api/v1/sessions", sessionRoutes);
+app.use("/api/v1/student", studentSessionsRoutes);
 app.use("/api/v1/assets", assetRoutes);
 app.use("/api/v1/student/courses", studentCourseRoutes);
 app.use("/api/v1/user", dashboardRoutes);

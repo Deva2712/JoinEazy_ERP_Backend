@@ -2,10 +2,18 @@
 
 import { Op } from "sequelize";
 import Bulletin from "./bulletins-model.js";
+import { Cohort } from "../cohort/cohort-model.js";
 
 // ─── Helper: shape bulletin for frontend ─────────────────────────────────────
-const transform = (b) => {
+const transform = async (b) => {
   const json = b.toJSON ? b.toJSON() : b;
+
+  let courseName = null;
+  if (json.cohort_id) {
+    const cohort = await Cohort.findByPk(json.cohort_id);
+    courseName = cohort?.cohort_name || null;
+  }
+
   return {
     id:          json.id,
     title:       json.title,
@@ -15,12 +23,13 @@ const transform = (b) => {
     is_pinned:   json.is_pinned,
     cohortId:    json.cohort_id || null,
     cohort_id:   json.cohort_id || null,
+    courseName,
     department:  json.department || null,
     author:      json.author_name,
     author_id:   json.author_id,
-    attachments: json.attachments || [],  
-    createdAt:   json.created_at,
-    created_at:  json.created_at,
+    attachments: json.attachments || [],
+    createdAt:   json.createdAt || json.created_at,
+    created_at:  json.createdAt || json.created_at,
   };
 };
 
@@ -41,13 +50,11 @@ export const getBulletins = async (query = {}) => {
     ],
   });
 
-  return bulletins.map(transform);
+  return Promise.all(bulletins.map(transform));
 };
 
 // ─── CREATE bulletin ──────────────────────────────────────────────────────────
 export const createBulletin = async (data, author) => {
-  // attachment from frontend is a single file object { name, url }
-  // We store it as an array for consistency with the frontend shape
   let attachments = [];
   if (data.attachment) {
     attachments = [{ name: data.attachment.name || "Attachment", url: data.attachment.url || "" }];
@@ -69,7 +76,9 @@ export const createBulletin = async (data, author) => {
     attachments,
   });
 
-  return transform(bulletin);
+  const fresh = await Bulletin.findByPk(bulletin.id);
+  console.log("DEBUG fresh.toJSON():", JSON.stringify(fresh.toJSON()));
+  return transform(fresh);
 };
 
 // ─── DELETE bulletin ──────────────────────────────────────────────────────────
@@ -81,7 +90,6 @@ export const deleteBulletin = async (bulletinId, userId, userRole) => {
     throw e;
   }
 
-  // Only author or admin can delete
   if (bulletin.author_id !== userId && userRole !== "admin" && userRole !== "professor") {
     const e = new Error("Not authorized to delete this bulletin");
     e.statusCode = 403;
