@@ -1,6 +1,10 @@
 import express from "express";
 import { protect, authorize } from "../../middleware/auth.middleware.js";
-import { getSchedule, addSchedule, getMeetings, acceptMeeting, rejectMeeting, rescheduleMeeting } from "./schedule-controller.js";
+import { 
+  getSchedule, addSchedule, getMeetings, 
+  acceptMeeting, rejectMeeting, rescheduleMeeting, 
+  createMeeting, createOutgoing  
+} from "./schedule-controller.js";
 import * as revalCtrl from "../revaluation/revaluation-controller.js";
 
 const router = express.Router();
@@ -10,8 +14,12 @@ router.get("/schedule",  protect, authorize("professor","admin"), getSchedule);
 router.post("/schedule", protect, authorize("professor","admin"), addSchedule);
 router.put("/schedule",  protect, authorize("professor","admin"), addSchedule);
 
-// ─── Meetings ─────────────────────────────────────────────────────────────────
-router.get("/meetings",                        protect, authorize("professor","admin"), getMeetings);
+// ─── Meetings — specific routes PEHLE, param routes BAAD MEIN ─────────────────
+router.post("/meetings/outgoing", protect, authorize("professor","admin"), createOutgoing); 
+
+router.get("/meetings",                        protect, getMeetings);
+router.post("/meetings",                       protect, createMeeting);                      
+
 router.post("/meetings/:requestId/accept",     protect, authorize("professor","admin"), acceptMeeting);
 router.post("/meetings/:requestId/reject",     protect, authorize("professor","admin"), rejectMeeting);
 router.post("/meetings/:requestId/reschedule", protect, authorize("professor","admin"), rescheduleMeeting);

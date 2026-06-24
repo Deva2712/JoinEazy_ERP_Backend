@@ -22,9 +22,9 @@ export const removeUser = asyncHandler(async (req, res) => {
   res.status(200).json({ success: true, message: "User deleted" });
 });
 
-// GET /api/v1/user/dashboard-overview
 export const getDashboardOverview = asyncHandler(async (req, res) => {
   const { Cohort, CohortParticipant } = await import("../cohort/cohort-model.js");
+  const { CohortAssignment, AssignmentSubmission } = await import("../cohort-assignments/cohort-assignments-model.js");
   const { Op } = await import("sequelize");
   const userId = req.user.id;
 
@@ -55,27 +55,69 @@ export const getDashboardOverview = asyncHandler(async (req, res) => {
     });
   }
 
-  const format = (c) => ({
-    id:                 c.id,
-    cohort_name:        c.cohort_name,
-    name:               c.cohort_name,
-    cohort_description: c.cohort_description,
-    course_codes:       Array.isArray(c.course_codes) ? c.course_codes : (c.course_codes ? [c.course_codes] : []),
-    status:             c.status || "Live",
-    creator_id:         c.creator_id,
-    is_admin:           c.creator_id === userId,
-    user_type:          c.creator_id === userId ? 1 : 0,
-    start_date:         c.start_date,
-    end_date:           c.end_date,
-    created_at:         c.created_at,
-  });
+  // FIX: compute live member_count + assignment stats per cohort
+  const format = async (c) => {
+    const isOwner = c.creator_id === userId;
+
+    const member_count = await CohortParticipant.count({ where: { cohort_id: c.id } });
+
+    const assignments = await CohortAssignment.findAll({ where: { cohort_id: c.id } });
+    const assignment_count = assignments.length;
+
+    const now = new Date();
+    const weekFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+    const due_this_week_assignment_count = assignments.filter(a => {
+      if (!a.deadline) return false;
+      const d = new Date(a.deadline);
+      return d >= now && d <= weekFromNow;
+    }).length;
+
+    let completed_assignment_count = 0;
+    if (!isOwner && assignments.length > 0) {
+      try {
+        completed_assignment_count = await AssignmentSubmission.count({
+          where: { assignment_id: assignments.map(a => a.id), student_id: userId },
+        });
+      } catch {
+        completed_assignment_count = 0;
+      }
+    }
+
+    return {
+      id:                 c.id,
+      cohort_name:        c.cohort_name,
+      name:               c.cohort_name,
+      title:              c.cohort_name,
+      cohort_description: c.cohort_description,
+      course_codes:       Array.isArray(c.course_codes) ? c.course_codes : (c.course_codes ? [c.course_codes] : []),
+      courseCodes:        Array.isArray(c.course_codes) ? c.course_codes : (c.course_codes ? [c.course_codes] : []),
+      status:             c.status || "Live",
+      creator_id:         c.creator_id,
+      is_admin:           isOwner,
+      user_type:          isOwner ? 1 : 0,
+      start_date:         c.start_date,
+      end_date:           c.end_date,
+      startDate:          c.start_date,
+      endDate:            c.end_date,
+      created_at:         c.created_at,
+      link:               `/c/${c.id}`,
+      member_count, memberCount: member_count, studentCount: member_count,
+      assignment_count, assignmentCount: assignment_count,
+      due_this_week_assignment_count,
+      completed_assignment_count,
+      group_count: c.group_count || 0,
+    };
+  };
+
+  const formattedCreated = await Promise.all(createdCohorts.map(format));
+  const formattedJoined  = await Promise.all(joinedCohorts.map(format));
 
   res.json({
     success: true,
     data: {
       user: { id: req.user.id, name: req.user.name, email: req.user.email, role: req.user.role },
-      createdCohorts: createdCohorts.map(format),
-      joinedCohorts:  joinedCohorts.map(format),
+      createdCohorts: formattedCreated,
+      joinedCohorts:  formattedJoined,
     },
   });
 });

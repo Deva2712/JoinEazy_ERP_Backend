@@ -2,6 +2,10 @@
 import express from "express";
 import { protect, authorize } from "../../middleware/auth.middleware.js";
 import * as ctrl from "./cohort-controller.js";
+import multer from "multer";
+
+
+const upload = multer({ storage: multer.memoryStorage() });
 
 const router = express.Router();
 
@@ -20,8 +24,7 @@ router.post("/create",  protect, authorize("professor", "admin"), ctrl.createCoh
 router.get("/:cohortId/details",  protect, ctrl.getCohortDetails);
 router.get("/:cohortId",          protect, ctrl.getCohortById);
 router.patch("/edit/:cohortId",   protect, authorize("professor", "admin"), ctrl.updateCohort);
-router.delete("/:cohortId",       protect, authorize("professor", "admin"), ctrl.deleteCohort);
-router.post("/:cohortId/archive", protect, authorize("professor", "admin"), ctrl.archiveCohort);
+router.delete("/:cohortId([0-9a-f-]{36})", protect, authorize("professor", "admin"), ctrl.deleteCohort);
 
 // ─── Invitation ───────────────────────────────────────────────────────────────
 router.post("/:cohortId/invitation-link",   protect, authorize("professor", "admin"), ctrl.generateInvitationLink);
@@ -41,7 +44,7 @@ router.post("/:cohortId/group/:groupId/invite",     protect, ctrl.inviteGroupMem
 router.get("/:cohortId/available-members/:groupId", protect, ctrl.getAvailableMembers);
 
 // ─── Participants ─────────────────────────────────────────────────────────────
-router.post("/:cohortId/invite",                protect, authorize("professor", "admin"), ctrl.uploadParticipants);
+router.post("/:cohortId/invite", protect, authorize("professor","admin"), upload.single("file"), ctrl.uploadParticipants);
 router.delete("/:cohortId/participants/remove", protect, authorize("professor", "admin"), ctrl.removeParticipant);
 
 // ─── Members ─────────────────────────────────────────────────────────────────

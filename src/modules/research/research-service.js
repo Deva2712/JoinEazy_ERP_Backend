@@ -1,71 +1,90 @@
 // src/modules/research/research-service.js
 import { Research, ResearchRole, ResearchApplication, ResearchUserProfile } from "./research-model.js";
 
-// ─── Helper: format research for frontend ────────────────────────────────────
 const formatResearch = (r, userId = null) => {
   const json = r.toJSON ? r.toJSON() : r;
   const myApp = userId
-    ? (json.applications || []).find((a) => a.applicant_id === userId)
+    ? (json.applications || []).find((a) => a.applicant_id === String(userId))
     : null;
   return {
-    ...json,
-    roles:        json.roles        || [],
-    applications: json.applications || [],
-    timeline:     json.timeline     || [],
-    hasApplied:   !!myApp,
+    id:                json.id,
+    title:             json.title,
+    description:       json.description,
+    type:              json.type,
+    status:            json.status,
+    startDate:         json.start_date,
+    endDate:           json.end_date,
+    timeline:          json.timeline || [],
+    tags:              json.tags || [],
+    collaborators:     json.collaborators || [],
+    isStarred:         myApp?.is_starred || false,
+    hasApplied:        !!myApp,
     applicationStatus: myApp?.status || null,
-    isStarred:    myApp?.is_starred || false,
+    isOwner:           userId ? json.created_by === String(userId) : false,
+    ownerId:           json.created_by,
+    roles:             json.roles || [],
+    applications:      json.applications || [],
+    applicants:        (json.applications || []).map(a => ({
+      id:         a.id,
+      applicantId: a.applicant_id,
+      roleTitle:  a.role_title,
+      status:     a.status,
+      message:    a.message,
+    })),
+    createdAt: json.created_at || json.createdAt,
   };
 };
 
+const includeOpts = [
+  { model: ResearchRole, as: "roles" },
+  { model: ResearchApplication, as: "applications" },
+];
+
 // ─── GET /research/dashboard-sync ────────────────────────────────────────────
 export const getDashboard = async (userId) => {
-  const [myProjects, allProjects, myApplications] = await Promise.all([
-    Research.findAll({
-      where: { created_by: userId },
-      include: [
-        { model: ResearchRole, as: "roles" },
-        { model: ResearchApplication, as: "applications" },
-      ],
-    }),
-    Research.findAll({
-      where: { status: "open" },
-      include: [
-        { model: ResearchRole, as: "roles" },
-        { model: ResearchApplication, as: "applications" },
-      ],
-    }),
-    ResearchApplication.findAll({ where: { applicant_id: userId } }),
+  const uid = String(userId);
+  const [myResearch, allOpen, myApplications] = await Promise.all([
+    Research.findAll({ where: { created_by: uid }, include: includeOpts }),
+    Research.findAll({ where: { status: "open" }, include: includeOpts }),
+    ResearchApplication.findAll({ where: { applicant_id: uid } }),
   ]);
 
+  const myProjects      = myResearch.filter(r => r.type !== "Publication").map(r => formatResearch(r, uid));
+  const myPublications  = myResearch.filter(r => r.type === "Publication").map(r => formatResearch(r, uid));
+  const discover        = allOpen.filter(r => r.created_by !== uid && r.type !== "Publication").map(r => formatResearch(r, uid));
+
   return {
-    projects:     myProjects.map((p) => formatResearch(p, userId)),
-    discover:     allProjects.map((p) => formatResearch(p, userId)),
-    applications: myApplications.map((a) => a.toJSON()),
+    projects:      myProjects,
+    publications:  myPublications,
+    discover,
+    applications:  myApplications.map(a => a.toJSON()),
   };
 };
 
 // ─── POST /research/create ────────────────────────────────────────────────────
 export const createResearch = async (userId, data) => {
+  const statusMap = { "Open": "open", "Active": "active", "Completed": "completed", "On Hold": "on_hold" };
   const project = await Research.create({
-    created_by:  userId,
+    created_by:  String(userId),
     title:       data.title,
     description: data.description || null,
     type:        data.type || "research",
-    status:      (data.status || "open").toLowerCase(),  // ← .toLowerCase() add karo
+    status:      statusMap[data.status] || (data.status || "open").toLowerCase().replace(/\s+/g, "_"),
     start_date:  data.startDate || data.start_date || null,
-    end_date:    data.endDate || data.end_date || null,
-    timeline:    data.timeline || [],
-    tags:        data.tags || [],
+    end_date:    data.endDate   || data.end_date   || null,
+    timeline:    data.timeline  || [],
+    tags:        data.tags      || [],
+    collaborators: data.collaborators || [],
   });
-  return formatResearch(project);
+  const fresh = await Research.findByPk(project.id, { include: includeOpts });
+  return formatResearch(fresh, userId);
 };
 
 // ─── PUT /research/update/:id ─────────────────────────────────────────────────
 export const updateResearch = async (id, data, userId) => {
   const project = await Research.findByPk(id);
   if (!project) { const e = new Error("Research not found"); e.statusCode = 404; throw e; }
-  if (project.created_by !== userId) { const e = new Error("Not authorized"); e.statusCode = 403; throw e; }
+  if (project.created_by !== String(userId)) { const e = new Error("Not authorized"); e.statusCode = 403; throw e; }
   await project.update({
     title:       data.title       ?? project.title,
     description: data.description ?? project.description,
@@ -73,52 +92,45 @@ export const updateResearch = async (id, data, userId) => {
     start_date:  data.startDate   ?? project.start_date,
     end_date:    data.endDate     ?? project.end_date,
     tags:        data.tags        ?? project.tags,
+    collaborators: data.collaborators ?? project.collaborators,
   });
-  return formatResearch(project);
+  const fresh = await Research.findByPk(id, { include: includeOpts });
+  return formatResearch(fresh, userId);
 };
 
-// ─── POST /research/:id/roles/create ─────────────────────────────────────────
+// ─── Roles ────────────────────────────────────────────────────────────────────
 export const createRole = async (researchId, roleData) => {
   const project = await Research.findByPk(researchId);
   if (!project) { const e = new Error("Research not found"); e.statusCode = 404; throw e; }
-  const role = await ResearchRole.create({
-    research_id: researchId,
-    title:       roleData.title,
-    description: roleData.description || null,
-    vacancies:   roleData.vacancies || 1,
-    skills:      roleData.skills || [],
-  });
-  const updated = await Research.findByPk(researchId, { include: [{ model: ResearchRole, as: "roles" }] });
+  await ResearchRole.create({ research_id: researchId, title: roleData.title, description: roleData.description || null, vacancies: roleData.vacancies || 1, skills: roleData.skills || [] });
+  const updated = await Research.findByPk(researchId, { include: includeOpts });
   return formatResearch(updated);
 };
 
-// ─── PUT /research/:id/roles/update/:roleIndex ────────────────────────────────
 export const updateRole = async (researchId, roleIndex, roleData) => {
   const roles = await ResearchRole.findAll({ where: { research_id: researchId } });
   const role = roles[roleIndex];
   if (!role) { const e = new Error("Role not found"); e.statusCode = 404; throw e; }
   await role.update({ title: roleData.title ?? role.title, description: roleData.description ?? role.description, vacancies: roleData.vacancies ?? role.vacancies });
-  const updated = await Research.findByPk(researchId, { include: [{ model: ResearchRole, as: "roles" }] });
+  const updated = await Research.findByPk(researchId, { include: includeOpts });
   return formatResearch(updated);
 };
 
-// ─── DELETE /research/:id/roles/delete/:roleId ────────────────────────────────
 export const deleteRole = async (researchId, roleId) => {
   const role = await ResearchRole.findOne({ where: { id: roleId, research_id: researchId } });
   if (!role) { const e = new Error("Role not found"); e.statusCode = 404; throw e; }
   await role.destroy();
-  const updated = await Research.findByPk(researchId, { include: [{ model: ResearchRole, as: "roles" }] });
+  const updated = await Research.findByPk(researchId, { include: includeOpts });
   return formatResearch(updated);
 };
 
-// ─── GET /research/timeline/:id ───────────────────────────────────────────────
+// ─── Timeline ─────────────────────────────────────────────────────────────────
 export const getTimeline = async (researchId) => {
   const project = await Research.findByPk(researchId);
   if (!project) { const e = new Error("Research not found"); e.statusCode = 404; throw e; }
   return { timeline: project.timeline || [] };
 };
 
-// ─── POST /research/timeline/:id ─────────────────────────────────────────────
 export const addTimelineEvent = async (researchId, eventData) => {
   const project = await Research.findByPk(researchId);
   if (!project) { const e = new Error("Research not found"); e.statusCode = 404; throw e; }
@@ -127,46 +139,40 @@ export const addTimelineEvent = async (researchId, eventData) => {
   return { timeline };
 };
 
-// ─── DELETE /research/timeline/:id/:eventId ───────────────────────────────────
 export const deleteTimelineEvent = async (researchId, eventId) => {
   const project = await Research.findByPk(researchId);
   if (!project) { const e = new Error("Research not found"); e.statusCode = 404; throw e; }
-  const timeline = (project.timeline || []).filter((e) => String(e.id) !== String(eventId));
+  const timeline = (project.timeline || []).filter(e => String(e.id) !== String(eventId));
   await project.update({ timeline });
   return { timeline };
 };
 
-// ─── PUT /research/timeline/:id/:eventId ──────────────────────────────────────
 export const updateTimelineEvent = async (researchId, eventId, eventData) => {
   const project = await Research.findByPk(researchId);
   if (!project) { const e = new Error("Research not found"); e.statusCode = 404; throw e; }
-  const timeline = (project.timeline || []).map((e) =>
-    String(e.id) === String(eventId) ? { ...e, ...eventData } : e
-  );
+  const timeline = (project.timeline || []).map(e => String(e.id) === String(eventId) ? { ...e, ...eventData } : e);
   await project.update({ timeline });
   return { timeline };
 };
 
-// ─── POST /research/apply/:id ─────────────────────────────────────────────────
+// ─── Applications ─────────────────────────────────────────────────────────────
 export const applyToResearch = async (researchId, applicantId, data = {}) => {
   const [app, created] = await ResearchApplication.findOrCreate({
-    where: { research_id: researchId, applicant_id: applicantId },
+    where: { research_id: researchId, applicant_id: String(applicantId) },
     defaults: { role_title: data.roleTitle || null, message: data.message || null },
   });
   return { application: app.toJSON(), already_applied: !created };
 };
 
-// ─── POST /research/star/:id ──────────────────────────────────────────────────
 export const starResearch = async (researchId, userId) => {
   const [app] = await ResearchApplication.findOrCreate({
-    where: { research_id: researchId, applicant_id: userId },
+    where: { research_id: researchId, applicant_id: String(userId) },
     defaults: { is_starred: true },
   });
   await app.update({ is_starred: !app.is_starred });
   return { is_starred: app.is_starred };
 };
 
-// ─── POST /research/applications/:id/:action ─────────────────────────────────
 export const handleApplication = async (applicationId, action, details = {}) => {
   const app = await ResearchApplication.findByPk(applicationId);
   if (!app) { const e = new Error("Application not found"); e.statusCode = 404; throw e; }
@@ -175,40 +181,33 @@ export const handleApplication = async (applicationId, action, details = {}) => 
   return { application: app.toJSON() };
 };
 
-// ─── GET /research/users ──────────────────────────────────────────────────────
-// FIX: this was 404 — route was missing
+// ─── Users ────────────────────────────────────────────────────────────────────
 export const getUsers = async () => {
   const profiles = await ResearchUserProfile.findAll({ order: [["name", "ASC"]] });
-  return profiles.map((p) => p.toJSON());
+  return profiles.map(p => p.toJSON());
 };
 
-// ─── GET /research/users/:id ──────────────────────────────────────────────────
 export const getUserById = async (userId) => {
-  let profile = await ResearchUserProfile.findOne({ where: { user_id: userId } });
-  if (!profile) {
-    // Return empty profile if not found — don't 404
-    return { user_id: userId, name: "", bio: "", skills: [], avatar_url: null };
-  }
+  const profile = await ResearchUserProfile.findOne({ where: { user_id: String(userId) } });
+  if (!profile) return { user_id: userId, name: "", bio: "", skills: [], avatar_url: null };
   return profile.toJSON();
 };
 
-// ─── GET /research/users/profile/:id ─────────────────────────────────────────
 export const getUserProfile = async (userId) => getUserById(userId);
 
-// ─── PUT /research/users/profile/update/:id ──────────────────────────────────
 export const updateUserProfile = async (userId, data) => {
   const [profile] = await ResearchUserProfile.findOrCreate({
-    where: { user_id: userId },
+    where: { user_id: String(userId) },
     defaults: { name: data.name || "", email: data.email || "" },
   });
   await profile.update({
-    name:      data.name      ?? profile.name,
-    bio:       data.bio       ?? profile.bio,
-    skills:    data.skills    ?? profile.skills,
-    linkedin:  data.linkedin  ?? profile.linkedin,
-    github:    data.github    ?? profile.github,
-    portfolio: data.portfolio ?? profile.portfolio,
-    avatar_url: data.avatarUrl ?? profile.avatar_url,
+    name:       data.name       ?? profile.name,
+    bio:        data.bio        ?? profile.bio,
+    skills:     data.skills     ?? profile.skills,
+    linkedin:   data.linkedin   ?? profile.linkedin,
+    github:     data.github     ?? profile.github,
+    portfolio:  data.portfolio  ?? profile.portfolio,
+    avatar_url: data.avatarUrl  ?? profile.avatar_url,
   });
   return profile.toJSON();
 };

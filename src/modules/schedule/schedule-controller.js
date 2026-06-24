@@ -1,5 +1,5 @@
 import { asyncHandler } from "../../middleware/error.middleware.js";
-import { getProfessorSchedule, upsertSchedule, getMeetingRequests, updateMeetingStatus } from "./schedule-service.js";
+import { getProfessorSchedule, upsertSchedule, getMeetingRequests, updateMeetingStatus, createOutgoingRequest, createMeetingRequest } from "./schedule-service.js";
 
 export const getSchedule = asyncHandler(async (req, res) => {
   const data = await getProfessorSchedule(req.user.id);
@@ -29,4 +29,13 @@ export const rejectMeeting = asyncHandler(async (req, res) => {
 export const rescheduleMeeting = asyncHandler(async (req, res) => {
   const data = await updateMeetingStatus(req.params.requestId, "rescheduled", req.body.newDateTime);
   res.json({ success: true, data });
+});
+export const createMeeting = asyncHandler(async (req, res) => {
+  const data = await createMeetingRequest(req.user.id, req.body);
+  res.status(201).json({ success: true, data });
+});
+
+export const createOutgoing = asyncHandler(async (req, res) => {
+  const data = await createMeetingRequest(req.user.id, req.body);
+  res.status(201).json({ success: true, data });
 });

@@ -1,6 +1,7 @@
 import "dotenv/config";
 import app from "./src/app.js";
 import { connectDB } from "./src/database/connection.js";
+import sequelize from "./src/database/connection.js";
 import logger from "./src/utils/logger.js";
 
 // ── Import ALL models so Sequelize knows about them before sync ───────────────
@@ -39,15 +40,25 @@ import "./src/modules/asset-request/asset-request-model.js";
 import "./src/modules/courses/courses-model.js";
 import "./src/modules/attendance/attendance-model.js";
 import "./src/modules/revaluation/revaluation-model.js";
-import "./src/modules/calendar/calendar-model.js";
-import "./src/modules/cohort-materials/cohort-materials-model.js";
-import "./src/modules/cohort-discussions/cohort-discussions-model.js";
-import "./src/modules/job-tray/job-tray-model.js";
+
 
 const PORT = process.env.PORT || 8000;
 
+const runEnumFixes = async () => {
+  try {
+    await sequelize.query(
+      `ALTER TYPE enum_research_projects_status ADD VALUE IF NOT EXISTS 'closed';`
+    );
+    logger.info("Enum check: 'closed' present on enum_research_projects_status");
+  } catch (err) {
+    // Non-fatal — log and continue booting even if this fails
+    logger.error("Enum fix failed (non-fatal):", err.message);
+  }
+};
+
 connectDB()
-  .then(() => {
+  .then(async () => {
+    await runEnumFixes();
     app.listen(PORT, () => {
       logger.info(`Server running on port ${PORT} in ${process.env.NODE_ENV || "development"} mode`);
     });

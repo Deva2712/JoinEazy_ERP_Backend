@@ -8,7 +8,7 @@ import {
 } from "./cohort-announcements-model.js";
 // ─── Auto-archive logic ───────────────────────────────────────────────────────
 
-const _lastArchiveRun = new Map(); // cohortId → timestamp
+const _lastArchiveRun = new Map(); 
 const ARCHIVE_THROTTLE_MS = 60 * 60 * 1000; // 1 hour
 
 export const autoArchiveOldAnnouncements = async (cohortId) => {
@@ -32,7 +32,7 @@ export const autoArchiveOldAnnouncements = async (cohortId) => {
 };
 
 // ─── GET all announcements for a cohort ──────────────────────────────────────
-// N+1 fix: upvote_records eagerly loaded in same query — no extra DB calls
+
 export const getAnnouncements = async (cohortId, requestingUserId, includeArchived = false) => {
   // Throttled auto-archive — runs at most once/hour, no cron needed
   await autoArchiveOldAnnouncements(cohortId);
@@ -46,7 +46,6 @@ export const getAnnouncements = async (cohortId, requestingUserId, includeArchiv
       {
         model: CohortAnnouncementReply,
         as: "replies",
-        // upvote_records loaded together with replies — single JOIN, no loop queries
         include: [
           {
             model: AnnouncementReplyUpvote,
@@ -70,7 +69,7 @@ export const getAnnouncements = async (cohortId, requestingUserId, includeArchiv
       const ids = reply.upvote_records.map((u) => u.user_id);
       return {
         ...reply,
-        upvote_records: undefined,          // strip raw join data
+        upvote_records: undefined,          
         upvoted_by_user_ids: ids,
         upvoted_by_current_user: ids.includes(requestingUserId),
         upvotes: ids.length,
@@ -89,7 +88,6 @@ export const createAnnouncement = async (cohortId, data, author) => {
     title: data.title,
     content: data.content,
     type: data.type || "announcement",
-    // FIX: default false — professor manually pins if needed
     is_pinned: data.is_pinned ?? false,
     is_archived: false,
     is_locked: false,
@@ -312,7 +310,6 @@ export const toggleUpvoteReply = async (cohortId, announcementId, replyId, userI
     throw err;
   }
 
-  // FIX: reuse already-loaded upvote_records — no extra DB query needed
   const existingIds = reply.upvote_records.map((u) => u.user_id);
   const alreadyUpvoted = existingIds.includes(userId);
 

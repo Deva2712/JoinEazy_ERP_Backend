@@ -3,12 +3,35 @@
 import { Op } from "sequelize";
 import { AttendanceLog, AttendanceRecord } from "./cohort-attendance-model.js";
 
-// ─── GET /attendance/logs/:cohortId ──────────────────────────────────────────
 export const getAttendanceLogs = async (cohortId) => {
-  const logs = await AttendanceLog.findAll({
-    where: { cohort_id: cohortId },
-    include: [{ model: AttendanceRecord, as: "records" }],
-    order: [["date", "DESC"]],
+  const { CohortParticipant } = await import("../cohort/cohort-model.js");
+  const User = (await import("../auth/auth-model.js")).default;
+
+  const [logs, participants] = await Promise.all([
+    AttendanceLog.findAll({
+      where: { cohort_id: cohortId },
+      include: [{ model: AttendanceRecord, as: "records" }],
+      order: [["date", "DESC"]],
+    }),
+    CohortParticipant.findAll({ where: { cohort_id: cohortId } }),
+  ]);
+
+  // Enrich with real user info
+  const userIds = participants.map(p => p.user_id).filter(Boolean);
+  const users = userIds.length
+    ? await User.findAll({ where: { id: userIds }, attributes: ["id", "name", "email"] })
+    : [];
+  const userMap = new Map(users.map(u => [u.id, u]));
+
+  const students = participants.map(p => {
+    const u = userMap.get(p.user_id);
+    return {
+      id:         p.user_id || p.email,
+      name:       u?.name || p.display_name || p.username || p.email?.split("@")[0] || "Unknown",
+      rollNumber: p.roll_number || p.email?.split("@")[0] || "",
+      email:      u?.email || p.email || "",
+      department: "",
+    };
   });
 
   const logsMap = {};
@@ -16,37 +39,16 @@ export const getAttendanceLogs = async (cohortId) => {
   const todayStr = new Date().toISOString().split("T")[0];
 
   logs.forEach((log) => {
-    const presentIds = log.records
-      .filter((r) => r.is_present)
-      .map((r) => r.student_id);
-    logsMap[log.date] = presentIds;
-
-    if (log.date === todayStr && log.status === "final") {
-      isFinal = true;
-    }
-  });
-
-  const studentMap = new Map();
-  logs.forEach((log) => {
-    log.records.forEach((r) => {
-      if (!studentMap.has(r.student_id)) {
-        studentMap.set(r.student_id, {
-          id:         r.student_id,
-          name:       r.student_name,
-          rollNumber: r.roll_number,
-          department: r.department,
-        });
-      }
-    });
-  });
+    const presentIds = log.records.filter((r) => r.is_present).map((r) => r.student_id);
+    const logDateStr = typeof log.date === "string"
+      ? log.date.split("T")[0]
+      : new Date(log.date).toISOString().split("T")[0];
+    logsMap[logDateStr] = presentIds;
+    if (logDateStr === todayStr && log.status === "final") isFinal = true; });
 
   return {
     status: "success",
-    data: {
-      students: Array.from(studentMap.values()),
-      logs:     logsMap,
-      isFinal,
-    },
+    data: { students, logs: logsMap, isFinal },
   };
 };
 
@@ -66,48 +68,35 @@ export const getProfessorLogs = async (professorId) => {
       courseId:  log.course_id,
       cohortId:  log.cohort_id,
       status:    log.status,
+      checkIn:   log.status === "final" ? "Submitted" : "Draft",
       createdAt: log.created_at,
     })),
   };
 };
 
 // ─── POST /courses/:courseId/attendance ───────────────────────────────────────
-// Frontend sends: { studentIds: [...], date: "2026-06-06", status: "final" }
-// FIX: allStudents fetch from previous attendance records for this cohort
-//      so we dont need frontend to send allStudents
 export const markAttendance = async (courseId, data, professor, cohortId) => {
   const { studentIds: presentIds = [], date, status = "final" } = data;
 
-  // FIX: Fetch all known students for this cohort from past attendance records
-  // This avoids needing frontend to send allStudents in body
-  const existingRecords = await AttendanceRecord.findAll({
-    include: [{
-      model: AttendanceLog,
-      as: "log",
-      where: { cohort_id: cohortId },
-      attributes: [],
-    }],
-    attributes: ["student_id", "student_name", "roll_number", "department"],
-    group: ["student_id", "student_name", "roll_number", "department"],
-  });
+  const { CohortParticipant } = await import("../cohort/cohort-model.js");
+  const User = (await import("../auth/auth-model.js")).default;
 
-  // Also include any new presentIds that may not be in past records
-  const knownStudentMap = new Map();
-  existingRecords.forEach((r) => {
-    knownStudentMap.set(r.student_id, {
-      id:          r.student_id,
-      name:        r.student_name,
-      roll_number: r.roll_number,
-      department:  r.department,
-    });
-  });
+  // Fetch all students for this cohort
+  const participants = await CohortParticipant.findAll({ where: { cohort_id: cohortId } });
+  const userIds = participants.map(p => p.user_id).filter(Boolean);
+  const users = userIds.length
+    ? await User.findAll({ where: { id: userIds }, attributes: ["id", "name"] })
+    : [];
+  const userMap = new Map(users.map(u => [u.id, u]));
 
-  // If no known students, use presentIds as the full list (first time marking)
-  const allStudents = knownStudentMap.size > 0
-    ? Array.from(knownStudentMap.values())
-    : presentIds.map((id) => ({ id, name: "Unknown", roll_number: null, department: null }));
+  const allStudents = participants.map(p => ({
+    id:          p.user_id || p.email,
+    name:        userMap.get(p.user_id)?.name || p.display_name || p.email?.split("@")[0] || "Unknown",
+    roll_number: p.roll_number || null,
+    department:  null,
+  }));
 
-  // Upsert log — if today's log already exists, update it
+  // Upsert log
   const [log] = await AttendanceLog.upsert(
     {
       cohort_id:      cohortId,
@@ -120,7 +109,7 @@ export const markAttendance = async (courseId, data, professor, cohortId) => {
     { conflictFields: ["course_id", "date"] }
   );
 
-  // Delete and recreate records — cleanest approach
+  // Recreate records
   await AttendanceRecord.destroy({ where: { log_id: log.id } });
 
   const records = allStudents.map((student) => ({
@@ -132,9 +121,7 @@ export const markAttendance = async (courseId, data, professor, cohortId) => {
     is_present:   presentIds.includes(student.id),
   }));
 
-  if (records.length > 0) {
-    await AttendanceRecord.bulkCreate(records);
-  }
+  if (records.length > 0) await AttendanceRecord.bulkCreate(records);
 
   return {
     status: "success",

@@ -2,6 +2,7 @@
 import { Op } from "sequelize";
 import crypto from "crypto";
 import { Cohort, CohortDetailSection, CohortGroup, CohortGroupMember, CohortParticipant } from "./cohort-model.js";
+import User from "../auth/auth-model.js"; 
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const generateSlug = (name) =>
@@ -79,6 +80,26 @@ export const getCohortDetails = async (cohortId, userId, userRole) => {
     }
   }
 
+  // FIX: calculate real assignment counts instead of hardcoded 0
+  const { CohortAssignment, AssignmentSubmission } = await import("../cohort-assignments/cohort-assignments-model.js");
+  const assignments = await CohortAssignment.findAll({ where: { cohort_id: cohort.id } });
+  const total_assignments = assignments.length;
+
+  let completed_assignments = 0;
+  if (!isAdmin && assignments.length > 0) {
+    try {
+      completed_assignments = await AssignmentSubmission.count({
+        where: { assignment_id: assignments.map(a => a.id), student_id: userId },
+      });
+    } catch {
+      completed_assignments = 0;
+    }
+  }
+  const pending_assignments = isAdmin ? total_assignments : Math.max(total_assignments - completed_assignments, 0);
+
+  // FIX: real member count instead of relying on stale stored column
+  const member_count = await CohortParticipant.count({ where: { cohort_id: cohort.id } });
+
   const json = cohort.toJSON();
   return {
     ...json,
@@ -86,9 +107,13 @@ export const getCohortDetails = async (cohortId, userId, userRole) => {
     course_codes:          Array.isArray(json.course_codes) ? json.course_codes : (json.course_codes ? [json.course_codes] : []),
     is_admin:              isAdmin,
     user_type:             isAdmin ? 1 : 0,
-    pending_assignments:   0,
-    completed_assignments: 0,
-    total_assignments:     0,
+    pending_assignments,
+    completed_assignments,
+    total_assignments,
+    assignment_count:      total_assignments,
+    member_count,
+    memberCount:           member_count,
+    studentCount:          member_count,
     group_name:            groupName,
     is_group_leader:       isGroupLeader,
     detail_sections:       json.detail_sections || defaultDetailSections(json.cohort_description),
@@ -160,6 +185,8 @@ if (data.course_codes !== undefined) {
     end_date:           data.end_date           ?? cohort.end_date,
     status:             data.status             ?? cohort.status,
     visibility:         data.visibility         ?? cohort.visibility,
+    max_groups_members: data.max_groups_members ?? cohort.max_groups_members,
+    max_course_members: data.max_course_members ?? cohort.max_course_members,
   });
   return formatCohort(cohort);
 };
@@ -225,12 +252,26 @@ export const createGroup = async (cohortId, data, creator) => {
     max_members:       data.max_members || 4,
   });
 
-  await CohortGroupMember.create({ group_id: group.id, user_id: creator.id, email: creator.email, role: "leader" });
-  await Cohort.increment("group_count", { where: { id: cohortId } });
+  // Leader add karo
+  await CohortGroupMember.create({ 
+    group_id: group.id, user_id: creator.id, email: creator.email, role: "leader" 
+  });
 
+  // Selected members add karo
+  if (data.members && Array.isArray(data.members) && data.members.length > 0) {
+    await Promise.all(
+      data.members.map(userId =>
+        CohortGroupMember.findOrCreate({
+          where: { group_id: group.id, user_id: userId },
+          defaults: { role: "member" }
+        })
+      )
+    );
+  }
+
+  await Cohort.increment("group_count", { where: { id: cohortId } });
   return group.toJSON();
 };
-
 export const updateGroup = async (cohortId, groupId, data, userId) => {
   const group = await CohortGroup.findOne({ where: { id: groupId, cohort_id: cohortId } });
   if (!group) { const e = new Error("Group not found"); e.statusCode = 404; throw e; }
@@ -252,9 +293,37 @@ export const getGroupDetails = async (cohortId, groupId) => {
     include: [{ model: CohortGroupMember, as: "CohortGroupMembers" }],
   });
   if (!group) { const e = new Error("Group not found"); e.statusCode = 404; throw e; }
+
   const json = group.toJSON();
-  const leader = json.CohortGroupMembers?.find((m) => m.role === "leader");
-  return { group: json, members: json.CohortGroupMembers || [], leader: leader || null };
+  const rawMembers = json.CohortGroupMembers || [];
+
+  // FIX: fetch real user info for each member, build frontend-expected nested shape
+  const userIds = rawMembers.map((m) => m.user_id).filter(Boolean);
+  const users = userIds.length ? await User.findAll({ where: { id: userIds } }) : [];
+  const userMap = new Map(users.map((u) => [u.id, u]));
+
+  const members = rawMembers.map((m) => {
+    const u = userMap.get(m.user_id);
+    return {
+      is_admin:  m.role === "leader",
+      joined_at: m.joined_at,
+      user: {
+        user_id:      m.user_id,
+        display_name: u?.name || m.email?.split("@")[0] || "Unknown",
+        username:     u?.name || m.email?.split("@")[0] || "Unknown",
+        email:        u?.email || m.email,
+        profile_pic:  u?.profile_pic || null,
+      },
+    };
+  });
+
+  const leader = members.find((m) => m.is_admin);
+
+  return {
+    group:  json,
+    members,
+    leader: leader || null,
+  };
 };
 
 export const inviteGroupMember = async (cohortId, groupId, data) => {
@@ -285,6 +354,17 @@ export const removeGroupMember = async (groupId, targetUserId) => {
 export const addMembersToGroup = async (groupId, memberUserIds) => {
   const group = await CohortGroup.findByPk(groupId);
   if (!group) { const e = new Error("Group not found"); e.statusCode = 404; throw e; }
+  
+   const cohort = await Cohort.findByPk(group.cohort_id);
+  const maxMembers = cohort?.max_groups_members || 4; 
+
+  const currentCount = await CohortGroupMember.count({ where: { group_id: groupId } });
+  if (currentCount + memberUserIds.length > maxMembers) {
+    const e = new Error(`Group is full. Max ${maxMembers} members allowed.`);
+    e.statusCode = 400;
+    throw e;
+  }
+
   const results = await Promise.all(
     memberUserIds.map((userId) =>
       CohortGroupMember.findOrCreate({ where: { group_id: groupId, user_id: userId }, defaults: { role: "member" } })
@@ -332,24 +412,37 @@ export const joinWithInvitation = async (token, user) => {
 
 // ─── PARTICIPANTS (Excel upload) ──────────────────────────────────────────────
 export const uploadParticipants = async (cohortId, participants) => {
-   
-  const User = (await import("../auth/auth-model.js")).default;
+  const UserModel = (await import("../auth/auth-model.js")).default;
+  const CohortMember = (await import("../cohort-members/cohort-members-model.js")).default;
 
   const results = await Promise.all(
     participants.map(async (p) => {
-      // ADD: email se user dhundho
-      const user = await User.findOne({ where: { email: p.email } });
+      const user = await UserModel.findOne({ where: { email: p.email } });
 
-      return CohortParticipant.findOrCreate({
+      // CohortParticipant mein add karo
+      const [participant, created] = await CohortParticipant.findOrCreate({
         where: { cohort_id: cohortId, email: p.email },
         defaults: {
-          user_id:      user?.id || null,      
-          display_name: p.display_name || p.name || user?.name,
-          username:     p.username || p.name || user?.name,
-          roll_number:  p.roll_number || null,
+          user_id:      user?.id || null,
+          display_name: user?.name || p.email.split("@")[0],
+          username:     user?.name || p.email.split("@")[0],
           is_active:    true,
         },
       });
+
+      // CohortMember mein bhi add karo — attendance ke liye
+      if (user) {
+        await CohortMember.findOrCreate({
+          where: { cohort_id: cohortId, user_id: user.id },
+          defaults: {
+            name:  user.name,
+            email: user.email,
+            role:  "student",
+          },
+        });
+      }
+
+      return [participant, created];
     })
   );
 

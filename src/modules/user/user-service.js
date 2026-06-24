@@ -1,23 +1,27 @@
+import { Op } from "sequelize";
 import User from "../auth/auth-model.js";
 
 export const getAllUsers = async (filters = {}) => {
   const where = {};
   if (filters.role) where.role = filters.role;
-  return User.findAll({
+  if (filters.search) {
+    where[Op.or] = [
+      { name:  { [Op.iLike]: `%${filters.search}%` } },
+      { email: { [Op.iLike]: `%${filters.search}%` } },
+    ];
+  }
+  const users = await User.findAll({
     where,
     attributes: { exclude: ["password"] },
+    limit: 10,
+    order: [["name", "ASC"]],
   });
+  return { users };
 };
 
 export const getUserById = async (id) => {
-  const user = await User.findByPk(id, {
-    attributes: { exclude: ["password"] },
-  });
-  if (!user) {
-    const err = new Error("User not found");
-    err.statusCode = 404;
-    throw err;
-  }
+  const user = await User.findByPk(id, { attributes: { exclude: ["password"] } });
+  if (!user) { const err = new Error("User not found"); err.statusCode = 404; throw err; }
   return user;
 };
 

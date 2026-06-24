@@ -59,7 +59,7 @@ app.use(requestLogger);
 app.use("/api/v1/auth",  authRoutes);
 app.use("/api/v1/users", userRoutes);
 app.use("/api/v1/user", userRoutes); // singular alias — frontend uses /user/settings, /user/details
-
+app.use("/api/v1/cohort",                     cohortRoutes);
 // Grade route — MUST be before /:cohortId/assignments to avoid conflict
 app.use("/api/v1/cohort/assignments", assignmentGradeRoutes);
 
@@ -76,7 +76,7 @@ app.use("/api/v1/cohort/:cohortId/meetings",  meetingsRoutes);
 app.use("/api/v1/cohort/:cohortId/materials",     materialsRoutes);
 app.use("/api/v1/cohort/:cohortId/discussions",   discussionsRoutes);
 app.use("/api/v1/cohort/:cohortId/courses",   courseRoutes);
-app.use("/api/v1/cohort",                     cohortRoutes);
+
 
 // Attendance — /api/v1/attendance/logs/:cohortId, /api/v1/professor/logs, /api/v1/courses/:courseId/attendance
 app.use("/api/v1", attendanceRoutes);

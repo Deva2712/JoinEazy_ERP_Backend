@@ -1,5 +1,6 @@
 // src/modules/cohort-members/cohort-members-service.js
 import CohortMember from "./cohort-members-model.js";
+import User from "../auth/auth-model.js";
 
 // GET /cohort/:cohortId/members?limit=2000&page=1
 export const getMembers = async (cohortId, { limit = 2000, page = 1 } = {}) => {
@@ -26,6 +27,20 @@ export const addMember = async (cohortId, data) => {
       department: data.department || null,
     },
   });
+
+  // CohortParticipant mein bhi add karo — attendance ke liye
+  if (data.email) {
+    await CohortParticipant.findOrCreate({
+      where: { cohort_id: cohortId, email: data.email },
+      defaults: {
+        user_id:      data.user_id || data.userId,
+        display_name: data.name,
+        username:     data.name,
+        is_active:    true,
+      },
+    });
+  }
+
   return { member: member.toJSON(), created };
 };
 

@@ -1,6 +1,7 @@
 // src/modules/cohort/cohort-controller.js
 import { asyncHandler } from "../../middleware/error.middleware.js";
 import * as svc from "./cohort-service.js";
+import * as XLSX from "xlsx";
 
 export const getCohortBySlug     = asyncHandler(async (req, res) => res.json({ success: true, data: await svc.getCohortBySlug(req.params.slug) }));
 
@@ -24,7 +25,15 @@ export const deleteGroup         = asyncHandler(async (req, res) => { await svc.
 export const getGroupDetails     = asyncHandler(async (req, res) => res.json({ success: true, data: await svc.getGroupDetails(req.params.cohortId, req.params.groupId) }));
 export const inviteGroupMember   = asyncHandler(async (req, res) => res.json({ success: true, data: await svc.inviteGroupMember(req.params.cohortId, req.params.groupId, req.body) }));
 export const acceptGroupInvite   = asyncHandler(async (req, res) => res.json({ success: true, data: await svc.acceptGroupInvite(req.body.token, req.user.id, req.user.email) }));
-export const removeGroupMember   = asyncHandler(async (req, res) => { await svc.removeGroupMember(req.params.groupId, req.body.targetUserId); res.json({ success: true, message: "Member removed" }); });
+
+export const removeGroupMember = asyncHandler(async (req, res) => {
+  const targetUserId = req.body?.targetUserId || req.query?.targetUserId;
+  if (!targetUserId) {
+    return res.status(400).json({ success: false, message: "targetUserId is required" });
+  }
+  await svc.removeGroupMember(req.params.groupId, targetUserId);
+  res.json({ success: true, message: "Member removed" });
+});
 export const addMembersToGroup   = asyncHandler(async (req, res) => res.json({ success: true, data: await svc.addMembersToGroup(req.params.groupId, req.body.memberUserIds) }));
 export const getAvailableMembers = asyncHandler(async (req, res) => res.json({ success: true, data: await svc.getAvailableMembers(req.params.cohortId, req.params.groupId) }));
 
@@ -32,10 +41,43 @@ export const generateInvitationLink = asyncHandler(async (req, res) => res.json(
 export const getInvitationInfo      = asyncHandler(async (req, res) => res.json({ success: true, data: await svc.getInvitationInfo(req.query.token) }));
 export const joinWithInvitation     = asyncHandler(async (req, res) => res.json({ success: true, data: await svc.joinWithInvitation(req.body.token, { id: req.user?.id, email: req.body.email, name: req.body.name }) }));
 
-export const uploadParticipants  = asyncHandler(async (req, res) => res.json({ success: true, data: await svc.uploadParticipants(req.params.cohortId, req.body.participants || []) }));
-export const removeParticipant   = asyncHandler(async (req, res) => { await svc.removeParticipant(req.params.cohortId, req.body.targetUserId); res.json({ success: true, message: "Participant removed" }); });
-export const getCohortMembers    = asyncHandler(async (req, res) => res.json({ success: true, data: await svc.getCohortMembers(req.params.cohortId) }));
 
+export const uploadParticipants = asyncHandler(async (req, res) => {
+  let participants = [];
+  if (req.file) {
+    const wb = XLSX.read(req.file.buffer, { type: "buffer" });
+    const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: "" });
+    participants = rows.map(row => ({
+       email:        row.email || row.Email || row.EMAIL || Object.values(row)[0] || "",
+  display_name: row.email || row.Email || "",
+  username:     row.email || row.Email || "", })).filter(p => p.email);
+  } else {
+    participants = req.body.participants || [];
+  }
+  if (!participants.length) return res.status(400).json({ success: false, message: "No valid participants found" });
+  const data = await svc.uploadParticipants(req.params.cohortId, participants);
+  res.json({ success: true, data });
+});
+
+export const removeParticipant = asyncHandler(async (req, res) => {
+  const targetUserId = req.body?.targetUserId || req.query?.targetUserId;
+  if (!targetUserId) {
+    return res.status(400).json({ success: false, message: "targetUserId is required" });
+  }
+  await svc.removeParticipant(req.params.cohortId, targetUserId);
+  res.json({ success: true, message: "Participant removed" });
+});
+ export const getCohortMembers = asyncHandler(async (req, res) => {
+  const data = await svc.getCohortMembers(req.params.cohortId);
+  res.json({ 
+    success: true, 
+    data: {
+      participants: data.participants,  
+      groups: data.groups,
+      is_group: data.is_group,
+    }
+  });
+});
 export const getLeaderboard          = asyncHandler(async (req, res) => res.json({ success: true, data: await svc.getLeaderboard(req.params.cohortId) }));
 export const getIndividualLeaderboard= asyncHandler(async (req, res) => res.json({ success: true, data: await svc.getIndividualLeaderboard(req.params.cohortId) }));
 export const getGroupLeaderboard     = asyncHandler(async (req, res) => res.json({ success: true, data: await svc.getGroupLeaderboard(req.params.cohortId) }));

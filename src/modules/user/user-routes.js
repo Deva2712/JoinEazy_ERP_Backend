@@ -13,7 +13,7 @@ router.get("/check-username",     checkUsername);
 router.put("/settings",           updateUserSettings);
 router.post("/bug-report",        submitBugReport);
 
-router.get("/", authorize("admin"), getUsers);
+router.get("/", getUsers);
 router.get("/:id", getUser);
 router.put("/:id", updateUserProfile);
 router.delete("/:id", authorize("admin"), removeUser);

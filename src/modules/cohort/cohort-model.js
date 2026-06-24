@@ -25,6 +25,9 @@ const Cohort = sequelize.define("Cohort", {
   group_count:        { type: DataTypes.INTEGER, defaultValue: 0 },
   invitation_token:   { type: DataTypes.STRING, allowNull: true },
   invitation_expires: { type: DataTypes.DATE, allowNull: true },
+  max_groups_members: { type: DataTypes.INTEGER, defaultValue: 4 },
+
+  max_course_members: { type: DataTypes.INTEGER, defaultValue: 1400 },
 }, {
   tableName: "cohorts",
   timestamps: true,
