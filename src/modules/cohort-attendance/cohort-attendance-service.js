@@ -54,22 +54,33 @@ export const getAttendanceLogs = async (cohortId) => {
 
 // ─── GET /professor/logs ──────────────────────────────────────────────────────
 export const getProfessorLogs = async (professorId) => {
+  const { Cohort } = await import("../cohort/cohort-model.js");
+
   const logs = await AttendanceLog.findAll({
     where: { professor_id: professorId },
     order: [["date", "DESC"]],
-    limit: 30,
+    limit: 60,
   });
+
+  // Cohort names fetch karo ek baar
+  const cohortIds = [...new Set(logs.map(l => l.cohort_id).filter(Boolean))];
+  const cohorts = cohortIds.length
+    ? await Cohort.findAll({ where: { id: cohortIds }, attributes: ["id", "cohort_name"] })
+    : [];
+  const cohortMap = new Map(cohorts.map(c => [c.id, c.cohort_name]));
 
   return {
     status: "success",
     data: logs.map((log) => ({
-      id:        log.id,
-      date:      log.date,
-      courseId:  log.course_id,
-      cohortId:  log.cohort_id,
-      status:    log.status,
-      checkIn:   log.status === "final" ? "Submitted" : "Draft",
-      createdAt: log.created_at,
+      id:         log.id,
+      date:       log.date,
+      courseId:   log.course_id,
+      cohortId:   log.cohort_id,
+      courseName: cohortMap.get(log.cohort_id) || log.course_id || "Unknown Course",
+      status:     log.status,
+      checkIn:    log.status === "final" ? "Submitted" : "Draft",
+      isSubmitted: log.status === "final",
+      createdAt:  log.created_at,
     })),
   };
 };

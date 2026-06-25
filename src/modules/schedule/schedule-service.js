@@ -65,7 +65,7 @@ export const getProfessorSchedule = async (professorId) => {
   const sentMeetings = await MeetingRequest.findAll({ 
     where: { 
       student_id: professorId,
-      professor_id: { [Op.ne]: professorId }  // ← apne aap ko bheja exclude karo
+      professor_id: { [Op.ne]: professorId }
     } 
   });
 
@@ -148,22 +148,39 @@ export const getMeetingRequests = async (professorId) => {
 export const createMeetingRequest = async (requesterId, data) => {
   const User = (await import("../auth/auth-model.js")).default;
 
-  const targetId = data.professor_id || data.professorId;
-  const requester = await User.findByPk(requesterId, { attributes: ["id", "name", "role"] });
+  const targetId = data.professor_id || data.professorId || data.recipientId;
+
+  if (!targetId) {
+    const err = new Error("recipientId/professorId is required to create a meeting request");
+    err.statusCode = 400;
+    throw err;
+  }
+  if (String(targetId) === String(requesterId)) {
+    const err = new Error("You cannot request a meeting with yourself");
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const recipient = await User.findByPk(targetId, { attributes: ["id", "name", "role", "department"] });
+  if (!recipient) {
+    const err = new Error("Selected recipient was not found");
+    err.statusCode = 404;
+    throw err;
+  }
 
   const meeting = await MeetingRequest.create({
-    professor_id:     targetId || requesterId,
+    professor_id:     targetId,
     student_id:       requesterId,
     title:            data.title || data.subject || data.reason || "Meeting Request",
     subject:          data.subject || data.title || "Meeting Request",
-    participant_name: requester?.name || null,        // ← requester name
-    participant_role: requester?.role || "professor", // ← requester role
-    participant_dept: data.participantDepartment || null,
+    participant_name: recipient.name || null,                           
+    participant_role: recipient.role || "professor",                   
+    participant_dept: recipient.department || data.participantDepartment || null,
     reason:           data.reason || data.message || null,
     meeting_type:     data.type || data.meetingType || "Online",
-    meeting_link:     data.meetingLink || null,
-    location:         data.location || null,
-    proposed_time:    data.proposed_time || data.proposedTime || data.dateTime || new Date(),
+    meeting_link:     data.meetingLink || data.link || null,
+    location:         data.location || data.venue || null,
+    proposed_time:    data.proposed_time || data.proposedTime || data.dateTime || data.requestedTime || new Date(),
     message:          data.message || data.reason || null,
     status:           "pending",
   });

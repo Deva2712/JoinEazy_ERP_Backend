@@ -1,4 +1,5 @@
 import { ResourceWeek, CohortResource } from "./cohort-resources-model.js";
+import { Op } from "sequelize";
 
 // ─── Helper: format week with frontend expected fields 
 const fmtWeek = (w, index) => {
@@ -9,6 +10,8 @@ const fmtWeek = (w, index) => {
     weekNumber:     index + 1,
     totalResources: resources.length,
     resources:      resources.map(fmtResource),
+     startDate:      json.start_date || null,   
+    endDate:        json.end_date   || null,
   };
 };
 
@@ -47,6 +50,8 @@ export const createWeek = async (cohortId, data) => {
     cohort_id: cohortId,
     title:     data.title,
     dateRange: data.dateRange || null,
+     start_date: data.startDate || null,
+    end_date:   data.endDate   || null,
     order:     data.order ?? count,
   });
   return fmtWeek(week, count);
@@ -56,12 +61,19 @@ export const createWeek = async (cohortId, data) => {
 export const updateWeek = async (cohortId, weekId, data) => {
   const week = await ResourceWeek.findOne({ where: { id: weekId, cohort_id: cohortId } });
   if (!week) { const e = new Error("Week not found"); e.statusCode = 404; throw e; }
+
+   const newOrder = data.order !== undefined && data.order !== null
+    ? parseInt(data.order)
+    : (data.weekNumber !== undefined ? parseInt(data.weekNumber) - 1 : week.order);
+ 
   await week.update({
     title:     data.title     ?? week.title,
     dateRange: data.dateRange ?? week.dateRange,
+     start_date: data.startDate ?? week.start_date ?? null,
+    end_date:   data.endDate   ?? week.end_date   ?? null,
     order:     data.order     ?? week.order,
   });
-  const index = await ResourceWeek.count({ where: { cohort_id: cohortId, order: { $lt: week.order } } });
+  const index = await ResourceWeek.count({ where: { cohort_id: cohortId, order: { [Op.lt]: week.order } } });
   return fmtWeek(week, index);
 };
 

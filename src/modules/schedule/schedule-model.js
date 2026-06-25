@@ -37,6 +37,7 @@ const MeetingRequest = sequelize.define("MeetingRequest", {
 const OutgoingMeetingRequest = sequelize.define("OutgoingMeetingRequest", {
   id:                   { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
   professor_id:         { type: DataTypes.UUID, allowNull: false },
+  recipient_id:         { type: DataTypes.UUID, allowNull: true },   // ← actual user ID
   recipient_name:       { type: DataTypes.STRING, allowNull: false },
   recipient_role:       { type: DataTypes.STRING, allowNull: true },
   recipient_department: { type: DataTypes.STRING, allowNull: true },

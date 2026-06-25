@@ -19,7 +19,7 @@ export const addDetailSection    = asyncHandler(async (req, res) => res.status(2
 export const editDetailSection   = asyncHandler(async (req, res) => res.json({ success: true, data: await svc.editDetailSection(req.params.cohortId, req.params.detailId, req.body) }));
 export const deleteDetailSection = asyncHandler(async (req, res) => { await svc.deleteDetailSection(req.params.cohortId, req.params.detailId); res.json({ success: true, message: "Section deleted" }); });
 
-export const createGroup         = asyncHandler(async (req, res) => res.status(201).json({ success: true, data: await svc.createGroup(req.params.cohortId, req.body, { id: req.user.id, email: req.user.email }) }));
+export const createGroup         = asyncHandler(async (req, res) => res.status(201).json({ success: true, data: await svc.createGroup(req.params.cohortId, req.body, { id: req.user.id, email: req.user.email, role: req.user.role }) }));
 export const updateGroup         = asyncHandler(async (req, res) => res.json({ success: true, data: await svc.updateGroup(req.params.cohortId, req.params.groupId, req.body, req.user.id) }));
 export const deleteGroup         = asyncHandler(async (req, res) => { await svc.deleteGroup(req.params.cohortId, req.params.groupId, req.user.id, req.user.role); res.json({ success: true, message: "Group deleted" }); });
 export const getGroupDetails     = asyncHandler(async (req, res) => res.json({ success: true, data: await svc.getGroupDetails(req.params.cohortId, req.params.groupId) }));

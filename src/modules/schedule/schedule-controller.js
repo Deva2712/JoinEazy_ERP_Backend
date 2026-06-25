@@ -17,12 +17,12 @@ export const getMeetings = asyncHandler(async (req, res) => {
 });
 
 export const acceptMeeting = asyncHandler(async (req, res) => {
-  const data = await updateMeetingStatus(req.params.requestId, "accepted");
+  const data = await updateMeetingStatus(req.params.requestId, "accepted", req.body);
   res.json({ success: true, data });
 });
 
 export const rejectMeeting = asyncHandler(async (req, res) => {
-  const data = await updateMeetingStatus(req.params.requestId, "rejected");
+  const data = await updateMeetingStatus(req.params.requestId, "rejected", req.body);
   res.json({ success: true, data });
 });
 

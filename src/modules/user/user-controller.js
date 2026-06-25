@@ -112,10 +112,15 @@ export const getDashboardOverview = asyncHandler(async (req, res) => {
   const formattedCreated = await Promise.all(createdCohorts.map(format));
   const formattedJoined  = await Promise.all(joinedCohorts.map(format));
 
+  // Fetch full user profile so Settings page gets all saved fields
+  const User = (await import("../auth/auth-model.js")).default;
+  const fullUser = await User.findByPk(req.user.id, { attributes: { exclude: ["password"] } });
+  const userPayload = fullUser ? fullUser.toJSON() : { id: req.user.id, name: req.user.name, email: req.user.email, role: req.user.role };
+
   res.json({
     success: true,
     data: {
-      user: { id: req.user.id, name: req.user.name, email: req.user.email, role: req.user.role },
+      user: userPayload,
       createdCohorts: formattedCreated,
       joinedCohorts:  formattedJoined,
     },

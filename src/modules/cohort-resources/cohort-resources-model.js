@@ -7,6 +7,8 @@ const ResourceWeek = sequelize.define("ResourceWeek", {
   cohort_id: { type: DataTypes.STRING, allowNull: false },
   title:     { type: DataTypes.STRING, allowNull: false },
   dateRange: { type: DataTypes.STRING, allowNull: true },
+  start_date: { type: DataTypes.DATEONLY, allowNull: true },
+  end_date:   { type: DataTypes.DATEONLY, allowNull: true },
   order:     { type: DataTypes.INTEGER, defaultValue: 0 },
 }, { tableName: "resource_weeks", timestamps: true, underscored: true,
      indexes: [{ fields: ["cohort_id"] }] });

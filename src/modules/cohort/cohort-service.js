@@ -252,21 +252,50 @@ export const createGroup = async (cohortId, data, creator) => {
     max_members:       data.max_members || 4,
   });
 
-  // Leader add karo
-  await CohortGroupMember.create({ 
-    group_id: group.id, user_id: creator.id, email: creator.email, role: "leader" 
-  });
+  const isProfessor = creator.role === "professor" || creator.userType === 1 || data.creatorIsProfessor === true;
 
-  // Selected members add karo
-  if (data.members && Array.isArray(data.members) && data.members.length > 0) {
-    await Promise.all(
-      data.members.map(userId =>
-        CohortGroupMember.findOrCreate({
-          where: { group_id: group.id, user_id: userId },
-          defaults: { role: "member" }
-        })
-      )
-    );
+  if (isProfessor) {
+    // Prof group create kar raha hai — prof group me add nahi hoga
+    // Pehla selected member leader banega
+    if (data.members && Array.isArray(data.members) && data.members.length > 0) {
+      const [firstMember, ...restMembers] = data.members;
+
+      // Pehle member ko leader banao
+      await CohortGroupMember.create({
+        group_id: group.id,
+        user_id:  firstMember,
+        role:     "leader",
+      });
+
+      // Baaki members ko normal member banao
+      if (restMembers.length > 0) {
+        await Promise.all(
+          restMembers.map(userId =>
+            CohortGroupMember.findOrCreate({
+              where:    { group_id: group.id, user_id: userId },
+              defaults: { role: "member" },
+            })
+          )
+        );
+      }
+    }
+  } else {
+    // Student group create kar raha hai — wo khud leader hai
+    await CohortGroupMember.create({
+      group_id: group.id, user_id: creator.id, email: creator.email, role: "leader",
+    });
+
+    // Selected members add karo
+    if (data.members && Array.isArray(data.members) && data.members.length > 0) {
+      await Promise.all(
+        data.members.map(userId =>
+          CohortGroupMember.findOrCreate({
+            where:    { group_id: group.id, user_id: userId },
+            defaults: { role: "member" },
+          })
+        )
+      );
+    }
   }
 
   await Cohort.increment("group_count", { where: { id: cohortId } });
