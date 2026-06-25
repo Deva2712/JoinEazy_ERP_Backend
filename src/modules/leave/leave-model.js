@@ -10,13 +10,16 @@ const Leave = sequelize.define("Leave", {
   from_date:      { type: DataTypes.DATEONLY, allowNull: false },
   to_date:        { type: DataTypes.DATEONLY, allowNull: false },
   reason:         { type: DataTypes.TEXT, allowNull: false },
-  substitute_id:   { type: DataTypes.STRING, allowNull: true },   // faculty user ID
-  substitute_name: { type: DataTypes.STRING, allowNull: true },   // faculty naam (display ke liye)
+  substitute_id:   { type: DataTypes.STRING, allowNull: true },
+  substitute_name: { type: DataTypes.STRING, allowNull: true },
   course_name:     { type: DataTypes.STRING, allowNull: true },
   room_number:     { type: DataTypes.STRING, allowNull: true },
   start_time:      { type: DataTypes.STRING, allowNull: true },
   end_time:        { type: DataTypes.STRING, allowNull: true },
   note:            { type: DataTypes.TEXT,   allowNull: true },
+
+  // Supporting document — file URL (S3) ya external link
+  supporting_doc_url:  { type: DataTypes.STRING(1000), allowNull: true },
 
   substitute_status: { type: DataTypes.STRING, defaultValue: "Pending" },
   hod_status:         { type: DataTypes.STRING, defaultValue: "Pending" },

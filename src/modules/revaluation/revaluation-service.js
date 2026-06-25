@@ -1,11 +1,59 @@
 import RevaluationRequest from "./revaluation-model.js";
+import User from "../auth/auth-model.js";
+import { Op } from "sequelize";
+
+// ─── Format request with student name ──────────────────────────────────────────
+const fmtRequest = (r, studentMap = {}) => {
+  const json = r.toJSON ? r.toJSON() : r;
+  const student = studentMap[json.student_id];
+  return {
+    ...json,
+    // Card ke liye expected fields
+    studentName:      student?.name     || json.student_name || "Unknown Student",
+    studentEmail:     student?.email    || json.student_email || "",
+    enrollmentNo:     student?.enrollment_no || json.enrollment_no || "",
+    subjectName:      json.subject      || "Unknown Subject",
+    subjectCode:      json.subject_code || "",
+    examType:         json.exam_type    || "",
+    semester:         json.semester     || "",
+    originalMarks:    json.current_marks,
+    revisedMarks:     json.revised_marks,
+    maxMarks:         json.max_marks    || null,
+    originalGrade:    json.original_grade || null,
+    revisedGrade:     json.revised_grade  || null,
+    reason:           json.reason,
+    professorRemarks: json.remarks,
+    priority:         json.priority     || "Low",
+    submittedAt:      json.createdAt    || json.created_at,
+    // status normalize karo
+    status: (() => {
+      const s = json.status || "pending";
+      const map = { pending: "Pending", under_review: "UnderReview", accepted: "UnderReview", resolved: "Approved", rejected: "Rejected", approved: "Approved" };
+      return map[s] || s;
+    })(),
+  };
+};
 
 // ─── Professor ─────────────────────────────────────────────────────────────────
 export const getProfOverview = async (professorId) => {
   const requests = await RevaluationRequest.findAll({ where: { professor_id: professorId } });
-  const pending = requests.filter(r => r.status === "pending").length;
-  const resolved = requests.filter(r => r.status === "resolved").length;
-  return { overview: { total: requests.length, pending, resolved }, requests };
+
+  // student names batch fetch
+  const studentIds = [...new Set(requests.map(r => r.student_id).filter(Boolean))];
+  const students = studentIds.length
+    ? await User.findAll({ where: { id: { [Op.in]: studentIds } }, attributes: ["id", "name", "email"] })
+    : [];
+  const studentMap = Object.fromEntries(students.map(s => [s.id, s]));
+
+  const formatted = requests.map(r => fmtRequest(r, studentMap));
+  const pending  = formatted.filter(r => r.status === "Pending").length;
+  const inReview = formatted.filter(r => r.status === "UnderReview").length;
+  const resolved = formatted.filter(r => ["Approved","Rejected"].includes(r.status)).length;
+
+  return {
+    overview: { total: formatted.length, pending, under_review: inReview, resolved },
+    requests: formatted,
+  };
 };
 
 export const getProfRequests = async (professorId, status) => {

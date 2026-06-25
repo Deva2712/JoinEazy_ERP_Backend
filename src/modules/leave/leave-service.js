@@ -2,7 +2,8 @@
 import Leave from "./leave-model.js";
 import User from "../auth/auth-model.js";
 import sequelize from "../../database/connection.js";
-import {Op} from "sequelize"; 
+import { Op } from "sequelize";
+
 const mapToDbFields = (data) => ({
   leave_type:    data.leaveType          ?? data.leave_type,
   from_date:     data.fromDate           ?? data.from_date,
@@ -16,6 +17,7 @@ const mapToDbFields = (data) => ({
   end_time:      data.timings?.endTime   || data.endTime   || data.end_time   || null,
   note:          data.note || null,
   status:        data.status             ?? "Pending",
+  supporting_doc_url: data.supporting_doc_url || null,
 });
 
 const formatLeave = (leave) => {
@@ -24,7 +26,7 @@ const formatLeave = (leave) => {
     id:                 j.id,
     applicantId:        j.applicant_id,
     applicantName:      j.applicant_name,
-    requesterName:      j.applicant_name,  
+    requesterName:      j.applicant_name,
     fromDate:           j.from_date,
     toDate:             j.to_date,
     reason:             j.reason,
@@ -38,6 +40,7 @@ const formatLeave = (leave) => {
       endTime:   j.end_time,
     },
     note:          j.note,
+    supportingDocUrl: j.supporting_doc_url || null,
     status:             j.status,
     isArchived:         j.is_archived,
     appliedAt:          j.created_at,
@@ -50,8 +53,6 @@ const formatLeave = (leave) => {
   };
 };
 
-// ── NEW: fetch all professors for the "Select Faculty" dropdown ──────────────
-// excludes the requesting user themself
 const getFaculties = async (excludeUserId) => {
   const professors = await User.findAll({
     where: { role: "professor" },
@@ -67,7 +68,6 @@ export const getApplications = async (userId) => {
   const user = await User.findByPk(userId, { attributes: ["id", "name"] });
 
   const [applications, substitutionRequests, faculties] = await Promise.all([
-    // apni applications
     Leave.findAll({
       where: { applicant_id: userId },
       order: [["created_at", "DESC"]],
@@ -91,27 +91,31 @@ export const getApplications = async (userId) => {
   };
 };
 
-export const createApplication = async (userId, userName, data) => {
+export const createApplication = async (userId, userName, data, fileUrl = null) => {
   const leave = await Leave.create({
     applicant_id:   userId,
     applicant_name: userName,
     ...mapToDbFields(data),
+    // file upload se aya URL override karta hai body ka field
+    ...(fileUrl && { supporting_doc_url: fileUrl }),
   });
   return { application: formatLeave(leave) };
 };
 
-export const updateApplication = async (id, userId, data) => {
+export const updateApplication = async (id, userId, data, fileUrl = null) => {
   const leave = await Leave.findOne({ where: { id, applicant_id: userId } });
   if (!leave) {
     const err = new Error("Leave application not found");
     err.statusCode = 404;
     throw err;
   }
-  await leave.update(mapToDbFields(data));
+  await leave.update({
+    ...mapToDbFields(data),
+    ...(fileUrl && { supporting_doc_url: fileUrl }),
+  });
   return { application: formatLeave(leave) };
 };
 
-// helper — check if all 3 approvals are done and set final status
 const checkAndFinalize = async (leave) => {
   const hodOk  = leave.hod_status  === "Approved";
   const hrOk   = leave.hr_status   === "Approved";
@@ -127,7 +131,6 @@ const checkAndFinalize = async (leave) => {
   ) {
     await leave.update({ status: "Rejected" });
   }
-  // warna Pending rehne do
 };
 
 export const updateApproval = async (id, role, action, remark) => {

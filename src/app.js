@@ -34,6 +34,7 @@ import studentCourseRoutes from "./modules/courses/courses-routes.js";
 import dashboardRoutes    from "./modules/dashboard/dashboard-routes.js";
 import studentRoutes      from "./modules/attendance/attendance-routes.js";
 import registrarRoutes from "./modules/registrar/registrar-routes.js";
+import lorRoutes       from "./modules/registrar/lor-routes.js";
 import studentProfileRoutes from "./modules/student-profile/student-profile-routes.js";
 import calendarRoutes from "./modules/calendar/calendar-routes.js";
 import materialsRoutes from "./modules/cohort-materials/cohort-materials-routes.js";
@@ -111,6 +112,7 @@ app.use("/api/v1/professor", revalProfRoutes);
 app.use("/api/v1/student",   revalStudentRoutes);
 
 app.use("/api/v1/registrar", registrarRoutes);
+app.use("/api/v1/lor",       lorRoutes);
 app.use("/api/v1/student", studentProfileRoutes);
 
 app.get("/health", (req, res) =>

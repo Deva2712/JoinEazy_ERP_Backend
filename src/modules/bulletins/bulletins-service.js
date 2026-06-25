@@ -3,6 +3,7 @@
 import { Op } from "sequelize";
 import Bulletin from "./bulletins-model.js";
 import { Cohort } from "../cohort/cohort-model.js";
+import { uploadToS3 } from "../../middleware/upload.middleware.js";
 
 // ─── Helper: shape bulletin for frontend ─────────────────────────────────────
 const transform = async (b) => {
@@ -54,12 +55,16 @@ export const getBulletins = async (query = {}) => {
 };
 
 // ─── CREATE bulletin ──────────────────────────────────────────────────────────
-export const createBulletin = async (data, author) => {
+export const createBulletin = async (data, author, file = null) => {
   let attachments = [];
-  if (data.attachment) {
-    attachments = [{ name: data.attachment.name || "Attachment", url: data.attachment.url || "" }];
-  }
-  if (data.attachments && Array.isArray(data.attachments)) {
+
+  // Agar file upload aayi — S3 pe bhejo
+  if (file) {
+    const { url } = await uploadToS3(file, "bulletins");
+    attachments = [{ name: file.originalname || "Attachment", url }];
+  } else if (data.attachment && data.attachment.url) {
+    attachments = [{ name: data.attachment.name || "Attachment", url: data.attachment.url }];
+  } else if (data.attachments && Array.isArray(data.attachments)) {
     attachments = data.attachments;
   }
 
@@ -77,7 +82,6 @@ export const createBulletin = async (data, author) => {
   });
 
   const fresh = await Bulletin.findByPk(bulletin.id);
-  console.log("DEBUG fresh.toJSON():", JSON.stringify(fresh.toJSON()));
   return transform(fresh);
 };
 

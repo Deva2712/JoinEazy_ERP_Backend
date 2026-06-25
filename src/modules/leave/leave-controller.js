@@ -16,12 +16,12 @@ export const getLeaveApplications = asyncHandler(async (req, res) => {
 });
 
 export const createLeaveApplication = asyncHandler(async (req, res) => {
-  const result = await createApplication(req.user.id, req.user.name, req.body);
+  const result = await createApplication(req.user.id, req.user.name, req.body, req.fileUrl || null);
   res.status(201).json({ success: true, data: result.application });
 });
 
 export const updateLeaveApplication = asyncHandler(async (req, res) => {
-  const result = await updateApplication(req.params.id, req.user.id, req.body);
+  const result = await updateApplication(req.params.id, req.user.id, req.body, req.fileUrl || null);
   res.status(200).json({ success: true, data: result.application });
 });
 
