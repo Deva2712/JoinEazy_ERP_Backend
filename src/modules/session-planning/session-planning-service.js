@@ -1,6 +1,7 @@
 import { Op } from "sequelize";
 import { CourseSection, ScheduleSlot, SessionReflection, SectionDocument } from "./session-planning-model.js";
 import { Cohort } from "../cohort/cohort-model.js";
+import { uploadToS3 } from "../../middleware/upload.middleware.js";
 
 // ─── Helper: format section + schedule for frontend ──────────────────────────
 const formatSection = (section) => {
@@ -145,11 +146,17 @@ export const getDocuments = async (sectionId) => {
 };
 
 // ─── POST /sessions/documents/:courseId/bulk ─────────────────────────────────
-export const uploadDocuments = async (sectionId, docs, fileNames = {}) => {
+export const uploadDocuments = async (sectionId, filesByDocType) => {
   await Promise.all(
-    docs.map((docType) =>
-      SectionDocument.upsert({ section_id: sectionId, doc_type: docType, file_name: fileNames[docType] || `${docType}.pdf`, url: `/uploads/${sectionId}/${docType}` })
-    )
+    Object.entries(filesByDocType).map(async ([docType, file]) => {
+      const { url } = await uploadToS3(file, `session-planning/${sectionId}`);
+      return SectionDocument.upsert({
+        section_id: sectionId,
+        doc_type:   docType,
+        file_name:  file.originalname || `${docType}.pdf`,
+        url,
+      });
+    })
   );
   return getDocuments(sectionId);
 };

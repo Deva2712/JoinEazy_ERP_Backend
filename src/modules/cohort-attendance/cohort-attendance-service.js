@@ -3,6 +3,27 @@
 import { Op } from "sequelize";
 import { AttendanceLog, AttendanceRecord } from "./cohort-attendance-model.js";
 
+// ─── Validate: sirf aaj ya pichhle 2 din allow ────────────────────────────────
+const validateAttendanceDate = (date) => {
+  const todayStr = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+  const targetStr = typeof date === "string" ? date.split("T")[0] : date.toISOString().split("T")[0];
+
+  const today  = new Date(todayStr  + "T00:00:00Z");
+  const target = new Date(targetStr + "T00:00:00Z");
+  const diffDays = Math.round((today - target) / (1000 * 60 * 60 * 24));
+
+  if (diffDays < 0) {
+    const err = new Error("Cannot mark attendance for a future date.");
+    err.statusCode = 400;
+    throw err;
+  }
+  if (diffDays > 2) {
+    const err = new Error("Backdate limit exceeded. Only today or previous 2 days allowed.");
+    err.statusCode = 400;
+    throw err;
+  }
+};
+
 export const getAttendanceLogs = async (cohortId) => {
   const { CohortParticipant } = await import("../cohort/cohort-model.js");
   const User = (await import("../auth/auth-model.js")).default;
@@ -16,7 +37,6 @@ export const getAttendanceLogs = async (cohortId) => {
     CohortParticipant.findAll({ where: { cohort_id: cohortId } }),
   ]);
 
-  // Enrich with real user info
   const userIds = participants.map(p => p.user_id).filter(Boolean);
   const users = userIds.length
     ? await User.findAll({ where: { id: userIds }, attributes: ["id", "name", "email"] })
@@ -36,7 +56,7 @@ export const getAttendanceLogs = async (cohortId) => {
 
   const logsMap = {};
   let isFinal = false;
-  const todayStr = new Date().toISOString().split("T")[0];
+  const todayStr = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
 
   logs.forEach((log) => {
     const presentIds = log.records.filter((r) => r.is_present).map((r) => r.student_id);
@@ -44,7 +64,8 @@ export const getAttendanceLogs = async (cohortId) => {
       ? log.date.split("T")[0]
       : new Date(log.date).toISOString().split("T")[0];
     logsMap[logDateStr] = presentIds;
-    if (logDateStr === todayStr && log.status === "final") isFinal = true; });
+    if (logDateStr === todayStr && log.status === "final") isFinal = true;
+  });
 
   return {
     status: "success",
@@ -62,7 +83,6 @@ export const getProfessorLogs = async (professorId) => {
     limit: 60,
   });
 
-  // Cohort names fetch karo ek baar
   const cohortIds = [...new Set(logs.map(l => l.cohort_id).filter(Boolean))];
   const cohorts = cohortIds.length
     ? await Cohort.findAll({ where: { id: cohortIds }, attributes: ["id", "cohort_name"] })
@@ -72,15 +92,15 @@ export const getProfessorLogs = async (professorId) => {
   return {
     status: "success",
     data: logs.map((log) => ({
-      id:         log.id,
-      date:       log.date,
-      courseId:   log.course_id,
-      cohortId:   log.cohort_id,
-      courseName: cohortMap.get(log.cohort_id) || log.course_id || "Unknown Course",
-      status:     log.status,
-      checkIn:    log.status === "final" ? "Submitted" : "Draft",
+      id:          log.id,
+      date:        log.date,
+      courseId:    log.course_id,
+      cohortId:    log.cohort_id,
+      courseName:  cohortMap.get(log.cohort_id) || log.course_id || "Unknown Course",
+      status:      log.status,
+      checkIn:     log.status === "final" ? "Submitted" : "Draft",
       isSubmitted: log.status === "final",
-      createdAt:  log.created_at,
+      createdAt:   log.created_at,
     })),
   };
 };
@@ -89,10 +109,12 @@ export const getProfessorLogs = async (professorId) => {
 export const markAttendance = async (courseId, data, professor, cohortId) => {
   const { studentIds: presentIds = [], date, status = "final" } = data;
 
+  // ✅ Date validation
+  validateAttendanceDate(date);
+
   const { CohortParticipant } = await import("../cohort/cohort-model.js");
   const User = (await import("../auth/auth-model.js")).default;
 
-  // Fetch all students for this cohort
   const participants = await CohortParticipant.findAll({ where: { cohort_id: cohortId } });
   const userIds = participants.map(p => p.user_id).filter(Boolean);
   const users = userIds.length
@@ -107,20 +129,26 @@ export const markAttendance = async (courseId, data, professor, cohortId) => {
     department:  null,
   }));
 
-  // Upsert log
-  const [log] = await AttendanceLog.upsert(
-    {
+  // ✅ upsert ki jagah findOne + create/update — PostgreSQL mein reliable
+  const dateStr = typeof date === "string" ? date.split("T")[0] : date;
+  let log = await AttendanceLog.findOne({
+    where: { course_id: courseId, date: dateStr },
+  });
+
+  if (log) {
+    await log.update({ status, professor_id: professor.id, professor_name: professor.name });
+  } else {
+    log = await AttendanceLog.create({
       cohort_id:      cohortId,
       course_id:      courseId,
       professor_id:   professor.id,
       professor_name: professor.name,
-      date,
+      date:           dateStr,
       status,
-    },
-    { conflictFields: ["course_id", "date"] }
-  );
+    });
+  }
 
-  // Recreate records
+  // Records recreate karo
   await AttendanceRecord.destroy({ where: { log_id: log.id } });
 
   const records = allStudents.map((student) => ({

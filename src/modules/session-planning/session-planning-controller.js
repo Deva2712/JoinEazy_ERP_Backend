@@ -18,8 +18,16 @@ export const getDocuments = asyncHandler(async (req, res) =>
   res.json({ success: true, data: await svc.getDocuments(req.params.courseId) })
 );
 export const uploadDocuments = asyncHandler(async (req, res) => {
-  const { docs = [], fileNames = {} } = req.body;
-  res.status(201).json({ success: true, data: await svc.uploadDocuments(req.params.courseId, docs, fileNames) });
+  const filesByDocType = {};
+  Object.entries(req.files || {}).forEach(([docType, fileArr]) => {
+    if (fileArr?.[0]) filesByDocType[docType] = fileArr[0];
+  });
+
+  if (Object.keys(filesByDocType).length === 0) {
+    return res.status(400).json({ success: false, message: "No files uploaded" });
+  }
+
+  res.status(201).json({ success: true, data: await svc.uploadDocuments(req.params.courseId, filesByDocType) });
 });
 
 // ── Student ────────────────────────────────────────────────────────────────────

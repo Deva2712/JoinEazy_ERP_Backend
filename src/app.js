@@ -42,6 +42,7 @@ import discussionsRoutes from "./modules/cohort-discussions/cohort-discussions-r
 import jobTrayRoutes from "./modules/job-tray/job-tray-routes.js";
 import expensesRoutes from "./modules/expenses/expenses-routes.js";
 import advancesRoutes from "./modules/advances/advances-routes.js";
+import uploadRoutes from "./modules/upload/upload-routes.js";
 import { professorRouter as revalProfRoutes, studentRouter as revalStudentRoutes } from "./modules/revaluation/revaluation-routes.js";
 import { errorHandler }  from "./middleware/error.middleware.js";
 import { requestLogger }   from "./middleware/logger.middleware.js";
@@ -89,6 +90,7 @@ app.use("/api/v1/exams",   examRoutes);
 app.use("/api/v1/leaves",  leaveRoutes);
 app.use("/api/v1/expenses", expensesRoutes);
 app.use("/api/v1/advances", advancesRoutes);
+app.use("/api/v1/upload", uploadRoutes);
 app.use("/api/v1/finance", financeRoutes);
 app.use("/api/v1/professor", scheduleRoutes);
 app.use("/api/v1/payroll", payrollRoutes);

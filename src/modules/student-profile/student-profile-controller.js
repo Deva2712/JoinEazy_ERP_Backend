@@ -6,10 +6,10 @@ export const updateProfile   = asyncHandler(async (req, res) => res.json({ succe
 export const updatePortfolio = asyncHandler(async (req, res) => res.json({ success: true, data: await svc.updatePortfolio(req.user.id, req.body) }));
 
 export const uploadDocument  = asyncHandler(async (req, res) => {
-  if (!req.file) {
+  if (!req.file || !req.fileUrl) {
     return res.status(400).json({ success: false, message: "No file uploaded" });
   }
-  const data = await svc.addDocument(req.user.id, req.body.docType, req.file);
+  const data = await svc.addDocument(req.user.id, req.body.docType, req.file, req.fileUrl);
   res.status(201).json({ success: true, data });
 });
 

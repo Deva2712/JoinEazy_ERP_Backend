@@ -108,12 +108,12 @@ export const updatePortfolio = async (userId, portfolioData) => {
   return toFrontendShape(profile, user);
 };
 
-export const addDocument = async (userId, docType, file) => {
+export const addDocument = async (userId, docType, file, fileUrl) => {
   const doc = await ProfileDocument.create({
     user_id: userId,
     doc_type: docType,
     file_name: file.originalname || file.filename || "document",
-    file_url: file.location || file.path || null,
+    file_url: fileUrl || file.location || file.path || null,
   });
   return doc.toJSON();
 };
