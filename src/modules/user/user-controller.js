@@ -55,7 +55,6 @@ export const getDashboardOverview = asyncHandler(async (req, res) => {
     });
   }
 
-  // FIX: compute live member_count + assignment stats per cohort
   const format = async (c) => {
     const isOwner = c.creator_id === userId;
 
@@ -150,7 +149,12 @@ export const updateUserSettings = asyncHandler(async (req, res) => {
 
   const updates = {};
   for (const key of allowedFields) {
-    if (req.body[key] !== undefined) updates[key] = req.body[key];
+    if (req.body[key] !== undefined) {
+      // Empty string ko null mein convert karo — DATEONLY (dateOfBirth) jaisi
+      // columns "" ko invalid date maan ke DB error throw kar deti hain,
+      // isse poora save fail ho jaata tha jab field khali ho.
+      updates[key] = req.body[key] === "" ? null : req.body[key];
+    }
   }
   if (req.body.fullName !== undefined) updates.name = req.body.fullName;
   // if (req.body.officialEmail !== undefined) updates.email = req.body.officialEmail;

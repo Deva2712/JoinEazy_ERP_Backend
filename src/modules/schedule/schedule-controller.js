@@ -17,17 +17,17 @@ export const getMeetings = asyncHandler(async (req, res) => {
 });
 
 export const acceptMeeting = asyncHandler(async (req, res) => {
-  const data = await updateMeetingStatus(req.params.requestId, "accepted", req.body);
+  const data = await updateMeetingStatus(req.params.requestId, "accepted", req.body, req.user.id);
   res.json({ success: true, data });
 });
 
 export const rejectMeeting = asyncHandler(async (req, res) => {
-  const data = await updateMeetingStatus(req.params.requestId, "rejected", req.body);
+  const data = await updateMeetingStatus(req.params.requestId, "rejected", req.body, req.user.id);
   res.json({ success: true, data });
 });
 
 export const rescheduleMeeting = asyncHandler(async (req, res) => {
-  const data = await updateMeetingStatus(req.params.requestId, "rescheduled", req.body.newDateTime);
+  const data = await updateMeetingStatus(req.params.requestId, "rescheduled", req.body, req.user.id);
   res.json({ success: true, data });
 });
 export const createMeeting = asyncHandler(async (req, res) => {
@@ -36,6 +36,6 @@ export const createMeeting = asyncHandler(async (req, res) => {
 });
 
 export const createOutgoing = asyncHandler(async (req, res) => {
-  const data = await createMeetingRequest(req.user.id, req.body);
+  const data = await createOutgoingRequest(req.user.id, req.body);
   res.status(201).json({ success: true, data });
 });

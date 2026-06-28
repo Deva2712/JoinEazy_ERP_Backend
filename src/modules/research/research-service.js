@@ -25,12 +25,25 @@ const formatResearch = (r, userId = null) => {
     roles:             json.roles || [],
     applications:      json.applications || [],
     applicants:        (json.applications || []).map(a => ({
-      id:         a.id,
+      id:          a.id,
       applicantId: a.applicant_id,
-      roleTitle:  a.role_title,
-      status:     a.status,
-      message:    a.message,
+      roleTitle:   a.role_title,
+      status:      a.status,
+      message:     a.message,
     })),
+    // Trending/Popular ke liye metrics
+    starsCount:      (json.applications || []).filter(a => a.is_starred).length,
+    applicantsCount: (json.applications || []).filter(a => a.status !== "withdrawn").length,
+    // trendingScore — stars + applicants dono milake, recent projects ko extra boost
+    trendingScore: (() => {
+      const stars     = (json.applications || []).filter(a => a.is_starred).length;
+      const applicants = (json.applications || []).filter(a => a.status !== "withdrawn").length;
+      const createdAt  = new Date(json.created_at || json.createdAt || 0);
+      const ageInDays  = (Date.now() - createdAt.getTime()) / (1000 * 60 * 60 * 24);
+      // recent projects (last 30 days) ko 1.5x boost
+      const recencyBoost = ageInDays <= 30 ? 1.5 : 1;
+      return ((stars * 2) + applicants) * recencyBoost;
+    })(),
     createdAt: json.created_at || json.createdAt,
   };
 };
@@ -170,7 +183,17 @@ export const starResearch = async (researchId, userId) => {
     defaults: { is_starred: true },
   });
   await app.update({ is_starred: !app.is_starred });
-  return { is_starred: app.is_starred };
+
+  // Updated project with new starsCount return karo
+  const fresh = await Research.findByPk(researchId, { include: includeOpts });
+  const formatted = fresh ? formatResearch(fresh, userId) : null;
+
+  return {
+    is_starred:  app.is_starred,
+    starsCount:  formatted?.starsCount  ?? 0,
+    trendingScore: formatted?.trendingScore ?? 0,
+    project:     formatted,
+  };
 };
 
 export const handleApplication = async (applicationId, action, details = {}) => {

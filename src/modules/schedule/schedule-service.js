@@ -177,7 +177,7 @@ export const createMeetingRequest = async (requesterId, data) => {
     participant_role: recipient.role || "professor",                   
     participant_dept: recipient.department || data.participantDepartment || null,
     reason:           data.reason || data.message || null,
-    meeting_type:     data.type || data.meetingType || "Online",
+    meeting_type:     data.mode || data.type || data.meetingType || "Online",
     meeting_link:     data.meetingLink || data.link || null,
     location:         data.location || data.venue || null,
     proposed_time:    data.proposed_time || data.proposedTime || data.dateTime || data.requestedTime || new Date(),
@@ -187,13 +187,30 @@ export const createMeetingRequest = async (requesterId, data) => {
   return { meeting: fmtMeeting(meeting) };
 };
 
-export const updateMeetingStatus = async (requestId, status, data = {}) => {
+export const updateMeetingStatus = async (requestId, status, data = {}, requestingProfessorId = null) => {
   const meeting = await MeetingRequest.findByPk(requestId);
   if (!meeting) { const err = new Error("Meeting not found"); err.statusCode = 404; throw err; }
+
+  // Security: koi bhi professor sirf apne hi paas aayi hui meeting request
+  // accept/reject/reschedule kar sake — kisi dusre professor ki nahi, sirf
+  // requestId (UUID) jaan ke.
+  if (requestingProfessorId && String(meeting.professor_id) !== String(requestingProfessorId)) {
+    const err = new Error("You are not authorized to update this meeting request");
+    err.statusCode = 403;
+    throw err;
+  }
+
   await meeting.update({
     status,
-    ...(data.rescheduledTime ? { rescheduled_time: data.rescheduledTime } : {}),
-    ...(data.rejectionReason ? { rejection_reason: data.rejectionReason } : {}),
+    // mode select karte waqt professor "offline"/"online" bhejta hai — yeh
+    // meeting_type column mein save hona chahiye, pehle yeh field check hi
+    // nahi hota tha isliye meeting_type hamesha default "Online" reh jaata tha.
+    ...(data.mode ? { meeting_type: data.mode.charAt(0).toUpperCase() + data.mode.slice(1) } : {}),
+    ...(data.venue ? { location: data.venue } : {}),
+    ...(data.link ? { meeting_link: data.link } : {}),
+    // Reschedule flow "newDateTime" bhejta hai (camelCase "rescheduledTime" nahi)
+    ...(data.newDateTime ? { rescheduled_time: data.newDateTime } : (data.rescheduledTime ? { rescheduled_time: data.rescheduledTime } : {})),
+    ...(data.reason ? { rejection_reason: data.reason } : (data.rejectionReason ? { rejection_reason: data.rejectionReason } : {})),
     ...(data.meetingLink ? { meeting_link: data.meetingLink } : {}),
   });
   return { meeting: fmtMeeting(meeting) };
@@ -208,7 +225,7 @@ export const createOutgoingRequest = async (professorId, data) => {
     subject:              data.subject,
     requested_time:       data.requestedTime,
     reason:               data.reason || null,
-    mode:                 data.mode || null,
+    mode:                 data.mode ? data.mode.charAt(0).toUpperCase() + data.mode.slice(1) : null,
     link:                 data.link || null,
     venue:                data.venue || null,
     note:                 data.note || null,

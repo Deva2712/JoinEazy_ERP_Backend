@@ -93,8 +93,7 @@ export const deleteBulletin = async (bulletinId, userId, userRole) => {
     e.statusCode = 404;
     throw e;
   }
-
-  if (bulletin.author_id !== userId && userRole !== "admin" && userRole !== "professor") {
+ if (bulletin.author_id !== userId && userRole !== "admin") {
     const e = new Error("Not authorized to delete this bulletin");
     e.statusCode = 403;
     throw e;

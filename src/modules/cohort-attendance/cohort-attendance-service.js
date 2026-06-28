@@ -3,22 +3,38 @@
 import { Op } from "sequelize";
 import { AttendanceLog, AttendanceRecord } from "./cohort-attendance-model.js";
 
-// ─── Validate: sirf aaj ya pichhle 2 din allow ────────────────────────────────
+
+const getAllowedAttendanceDates = () => {
+  const todayStr = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+  const dates = [todayStr];
+  let checked = 1;
+  while (dates.length < 3 && checked < 10) {
+    const d = new Date(todayStr + "T12:00:00Z");
+    d.setUTCDate(d.getUTCDate() - checked);
+    if (d.getUTCDay() !== 0) {
+      const y = d.getUTCFullYear();
+      const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+      const day = String(d.getUTCDate()).padStart(2, "0");
+      dates.push(`${y}-${m}-${day}`);
+    }
+    checked++;
+  }
+  return dates;
+};
+
 const validateAttendanceDate = (date) => {
   const todayStr = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
   const targetStr = typeof date === "string" ? date.split("T")[0] : date.toISOString().split("T")[0];
 
-  const today  = new Date(todayStr  + "T00:00:00Z");
-  const target = new Date(targetStr + "T00:00:00Z");
-  const diffDays = Math.round((today - target) / (1000 * 60 * 60 * 24));
-
-  if (diffDays < 0) {
+  if (targetStr > todayStr) {
     const err = new Error("Cannot mark attendance for a future date.");
     err.statusCode = 400;
     throw err;
   }
-  if (diffDays > 2) {
-    const err = new Error("Backdate limit exceeded. Only today or previous 2 days allowed.");
+
+  const allowed = getAllowedAttendanceDates();
+  if (!allowed.includes(targetStr)) {
+    const err = new Error("Backdate limit exceeded. Only today or previous 2 working days (excluding Sunday) allowed.");
     err.statusCode = 400;
     throw err;
   }
@@ -109,7 +125,7 @@ export const getProfessorLogs = async (professorId) => {
 export const markAttendance = async (courseId, data, professor, cohortId) => {
   const { studentIds: presentIds = [], date, status = "final" } = data;
 
-  // ✅ Date validation
+  //  Date validation
   validateAttendanceDate(date);
 
   const { CohortParticipant } = await import("../cohort/cohort-model.js");
@@ -122,12 +138,19 @@ export const markAttendance = async (courseId, data, professor, cohortId) => {
     : [];
   const userMap = new Map(users.map(u => [u.id, u]));
 
-  const allStudents = participants.map(p => ({
-    id:          p.user_id || p.email,
-    name:        userMap.get(p.user_id)?.name || p.display_name || p.email?.split("@")[0] || "Unknown",
-    roll_number: p.roll_number || null,
-    department:  null,
-  }));
+  // Sirf un participants ko include karo jinka actual account link hai
+  // (user_id maujood hai). Jo sirf email se invite hue hain aur abhi register
+  // nahi hue (user_id null), unki id unki email ban jaati thi — aur
+  // student_id column strictly UUID hai, isliye email insert karne pe
+  // PostgreSQL crash karta tha ("invalid input syntax for type uuid").
+  const allStudents = participants
+    .filter(p => p.user_id)
+    .map(p => ({
+      id:          p.user_id,
+      name:        userMap.get(p.user_id)?.name || p.display_name || p.email?.split("@")[0] || "Unknown",
+      roll_number: p.roll_number || null,
+      department:  null,
+    }));
 
   // ✅ upsert ki jagah findOne + create/update — PostgreSQL mein reliable
   const dateStr = typeof date === "string" ? date.split("T")[0] : date;
