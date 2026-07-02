@@ -3,6 +3,7 @@ import Leave from "./leave-model.js";
 import User from "../auth/auth-model.js";
 import sequelize from "../../database/connection.js";
 import { Op } from "sequelize";
+import { notify } from "../../utils/notification-helper.js";
 
 const mapToDbFields = (data) => ({
   leave_type:    data.leaveType          ?? data.leave_type,
@@ -96,7 +97,6 @@ export const createApplication = async (userId, userName, data, fileUrl = null) 
     applicant_id:   userId,
     applicant_name: userName,
     ...mapToDbFields(data),
-    // file upload se aya URL override karta hai body ka field
     ...(fileUrl && { supporting_doc_url: fileUrl }),
   });
   return { application: formatLeave(leave) };
@@ -124,12 +124,24 @@ const checkAndFinalize = async (leave) => {
 
   if (hodOk && hrOk && subOk) {
     await leave.update({ status: "Approved" });
+    await notify(leave.applicant_id, {
+      title: "Leave Approved",
+      message: `Your ${leave.leave_type || ""} leave application has been approved.`,
+      type: "LEAVE_APPLICATION",
+      link: "/leave-application",
+    });
   } else if (
     leave.hod_status  === "Rejected" ||
     leave.hr_status   === "Rejected" ||
     leave.substitute_status === "Rejected"
   ) {
     await leave.update({ status: "Rejected" });
+    await notify(leave.applicant_id, {
+      title: "Leave Rejected",
+      message: `Your ${leave.leave_type || ""} leave application has been rejected.`,
+      type: "LEAVE_APPLICATION",
+      link: "/leave-application",
+    });
   }
 };
 
@@ -178,6 +190,12 @@ export const respondToSubstitution = async (id, userId, action) => {
   }
   await leave.update({ substitute_status: action });
   await leave.reload();
+  await notify(leave.applicant_id, {
+    title: `Substitute ${action}`,
+    message: `${leave.substitute_name || "Your substitute"} has ${String(action).toLowerCase()} your substitution request.`,
+    type: "LEAVE_APPLICATION",
+    link: "/leave-application",
+  });
   await checkAndFinalize(leave);
   await leave.reload();
   return { application: formatLeave(leave) };

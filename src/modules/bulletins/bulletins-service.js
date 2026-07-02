@@ -2,8 +2,9 @@
 
 import { Op } from "sequelize";
 import Bulletin from "./bulletins-model.js";
-import { Cohort } from "../cohort/cohort-model.js";
+import { Cohort, CohortParticipant } from "../cohort/cohort-model.js";
 import { uploadToS3 } from "../../middleware/upload.middleware.js";
+import { notify, notifyMany } from "../../utils/notification-helper.js";
 
 // ─── Helper: shape bulletin for frontend ─────────────────────────────────────
 const transform = async (b) => {
@@ -58,7 +59,6 @@ export const getBulletins = async (query = {}) => {
 export const createBulletin = async (data, author, file = null) => {
   let attachments = [];
 
-  // Agar file upload aayi — S3 pe bhejo
   if (file) {
     const { url } = await uploadToS3(file, "bulletins");
     attachments = [{ name: file.originalname || "Attachment", url }];
@@ -82,6 +82,22 @@ export const createBulletin = async (data, author, file = null) => {
   });
 
   const fresh = await Bulletin.findByPk(bulletin.id);
+
+
+  if (bulletin.cohort_id) {
+    const participants = await CohortParticipant.findAll({
+      where: { cohort_id: bulletin.cohort_id },
+      attributes: ["user_id"],
+    });
+    const recipientIds = participants.map(p => p.user_id).filter(id => id && id !== author.id);
+    await notifyMany(recipientIds, {
+      title: "New Bulletin",
+      message: `${author.name || "Someone"} posted: "${bulletin.title}"`,
+      type: "GENERAL",
+      link: "/bulletins",
+    });
+  }
+
   return transform(fresh);
 };
 

@@ -1,5 +1,6 @@
 // src/modules/cohort-assignments/cohort-assignments-service.js
 import { CohortAssignment, AssignmentSubmission } from "./cohort-assignments-model.js";
+import { notify } from "../../utils/notification-helper.js";
 
 // GET /cohort/:cohortId/assignments
 export const getAssignments = async (cohortId) => {
@@ -54,6 +55,15 @@ export const gradeSubmission = async (assignmentId, body) => {
   const submission = await AssignmentSubmission.findOne({ where: { id: body.submissionId, assignment_id: assignmentId } });
   if (!submission) { const e = new Error("Submission not found"); e.statusCode = 404; throw e; }
   await submission.update({ grade: body.grade });
+
+  const assignment = await CohortAssignment.findByPk(assignmentId, { attributes: ["title"] });
+  await notify(submission.student_id, {
+    title: "Assignment Graded",
+    message: `Your submission for "${assignment?.title || "an assignment"}" has been graded: ${body.grade}.`,
+    type: "GENERAL",
+    link: "/cohort/assignments",
+  });
+
   return submission.toJSON();
 };
 

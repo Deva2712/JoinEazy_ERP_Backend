@@ -102,5 +102,6 @@ Cohort.hasMany(CohortDetailSection, { foreignKey: "cohort_id", as: "detail_secti
 Cohort.hasMany(CohortGroup,         { foreignKey: "cohort_id", as: "groups",          onDelete: "CASCADE" });
 Cohort.hasMany(CohortParticipant,   { foreignKey: "cohort_id", as: "participants",     onDelete: "CASCADE" });
 CohortGroup.hasMany(CohortGroupMember, { foreignKey: "group_id", as: "CohortGroupMembers", onDelete: "CASCADE" });
+CohortGroupMember.belongsTo(CohortGroup, { foreignKey: "group_id", as: "group" });
 
 export { Cohort, CohortDetailSection, CohortGroup, CohortGroupMember, CohortParticipant };

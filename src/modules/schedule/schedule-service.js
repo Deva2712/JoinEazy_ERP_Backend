@@ -1,5 +1,7 @@
 import { Schedule, MeetingRequest, OutgoingMeetingRequest } from "./schedule-model.js";
 import {Op} from "sequelize";
+import { notify } from "../../utils/notification-helper.js";
+
 const normalizeEntry = (e, professorId, type = "class") => ({
   professor_id: professorId,
   title:      e.title      || e.courseName  || e.name || "Untitled",
@@ -53,7 +55,6 @@ export const getProfessorSchedule = async (professorId) => {
     order: [["day","ASC"],["start_time","ASC"]] 
   });
 
-  // RECEIVED  (professor_id = my ID, student_id != my ID)
   const receivedMeetings = await MeetingRequest.findAll({ 
     where: { 
       professor_id: professorId,
@@ -61,7 +62,6 @@ export const getProfessorSchedule = async (professorId) => {
     } 
   });
 
-  // SENT —  (student_id = my ID, professor_id != my ID)
   const sentMeetings = await MeetingRequest.findAll({ 
     where: { 
       student_id: professorId,
@@ -88,6 +88,7 @@ export const getProfessorSchedule = async (professorId) => {
     ],
   };
 };
+
 export const upsertSchedule = async (professorId, data) => {
   console.log("=== SCHEDULE PUT PAYLOAD ===", JSON.stringify(data, null, 2));
 
@@ -184,6 +185,17 @@ export const createMeetingRequest = async (requesterId, data) => {
     message:          data.message || data.reason || null,
     status:           "pending",
   });
+
+  // Recipient ko naya notification — pehle yeh feature missing tha,
+  // koi notification kabhi banti hi nahi thi.
+  const requester = await User.findByPk(requesterId, { attributes: ["name"] });
+  await notify(targetId, {
+    title: "New Meeting Request",
+    message: `${requester?.name || "Someone"} sent you a meeting request: "${meeting.subject}"`,
+    type: "MEETING_REQUEST",
+    link: "/schedule/requests",
+  });
+
   return { meeting: fmtMeeting(meeting) };
 };
 
@@ -191,9 +203,6 @@ export const updateMeetingStatus = async (requestId, status, data = {}, requesti
   const meeting = await MeetingRequest.findByPk(requestId);
   if (!meeting) { const err = new Error("Meeting not found"); err.statusCode = 404; throw err; }
 
-  // Security: koi bhi professor sirf apne hi paas aayi hui meeting request
-  // accept/reject/reschedule kar sake — kisi dusre professor ki nahi, sirf
-  // requestId (UUID) jaan ke.
   if (requestingProfessorId && String(meeting.professor_id) !== String(requestingProfessorId)) {
     const err = new Error("You are not authorized to update this meeting request");
     err.statusCode = 403;
@@ -202,17 +211,27 @@ export const updateMeetingStatus = async (requestId, status, data = {}, requesti
 
   await meeting.update({
     status,
-    // mode select karte waqt professor "offline"/"online" bhejta hai — yeh
-    // meeting_type column mein save hona chahiye, pehle yeh field check hi
-    // nahi hota tha isliye meeting_type hamesha default "Online" reh jaata tha.
     ...(data.mode ? { meeting_type: data.mode.charAt(0).toUpperCase() + data.mode.slice(1) } : {}),
     ...(data.venue ? { location: data.venue } : {}),
     ...(data.link ? { meeting_link: data.link } : {}),
-    // Reschedule flow "newDateTime" bhejta hai (camelCase "rescheduledTime" nahi)
     ...(data.newDateTime ? { rescheduled_time: data.newDateTime } : (data.rescheduledTime ? { rescheduled_time: data.rescheduledTime } : {})),
     ...(data.reason ? { rejection_reason: data.reason } : (data.rejectionReason ? { rejection_reason: data.rejectionReason } : {})),
     ...(data.meetingLink ? { meeting_link: data.meetingLink } : {}),
   });
+
+  // Requester (jisne meeting request bheji thi) ko status-update notification
+  const statusMessages = {
+    accepted:    `Your meeting request "${meeting.subject}" was accepted.`,
+    rejected:    `Your meeting request "${meeting.subject}" was rejected.${data.reason ? ` Reason: ${data.reason}` : ""}`,
+    rescheduled: `Your meeting request "${meeting.subject}" was rescheduled.`,
+  };
+  await notify(meeting.student_id, {
+    title: `Meeting ${status.charAt(0).toUpperCase() + status.slice(1)}`,
+    message: statusMessages[status] || `Your meeting request status changed to ${status}.`,
+    type: "MEETING_REQUEST",
+    link: "/schedule",
+  });
+
   return { meeting: fmtMeeting(meeting) };
 };
 

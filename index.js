@@ -40,6 +40,7 @@ import "./src/modules/asset-request/asset-request-model.js";
 import "./src/modules/courses/courses-model.js";
 import "./src/modules/attendance/attendance-model.js";
 import "./src/modules/revaluation/revaluation-model.js";
+import "./src/modules/hostel/hostel-model.js";
 
 
 const PORT = process.env.PORT || 8000;

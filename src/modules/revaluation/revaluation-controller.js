@@ -26,7 +26,7 @@ export const studentRequests = asyncHandler(async (req, res) => {
   res.status(200).json({ success: true, ...(await service.getStudentRequests(req.user.id)) });
 });
 export const subjects = asyncHandler(async (req, res) => {
-  res.status(200).json({ success: true, ...(await service.getSubjects()) });
+  res.status(200).json({ success: true, ...(await service.getSubjects(req.user.id)) });
 });
 export const createRequest = asyncHandler(async (req, res) => {
   res.status(201).json({ success: true, ...(await service.createStudentRequest(req.user.id, req.body)) });

@@ -4,8 +4,8 @@ import { asyncHandler } from "../../middleware/error.middleware.js";
 export const attendance = asyncHandler(async (req, res) => {
   res.status(200).json({ success: true, ...(await service.getStudentAttendance(req.user.id)) });
 });
-export const qr = asyncHandler(async (req, res) => {
-  res.status(200).json({ success: true, ...(await service.getQR(req.user.id)) });
+export const markQR = asyncHandler(async (req, res) => {
+  res.status(200).json({ success: true, ...(await service.markAttendanceViaQR(req.user.id, req.body.token)) });
 });
 export const timetable = asyncHandler(async (req, res) => {
   res.status(200).json({ success: true, ...(await service.getTimetable(req.user.id)) });
