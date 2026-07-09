@@ -1,4 +1,3 @@
-
 // docker-compose exec backend node seed-all.js
 
 import sequelize from "./src/database/connection.js";
@@ -7,7 +6,7 @@ import { CohortAnnouncement } from "./src/modules/cohort-announcements/cohort-an
 import { CohortAssignment } from "./src/modules/cohort-assignments/cohort-assignments-model.js";
 import Leave from "./src/modules/leave/leave-model.js";
 import {Notification} from "./src/modules/notifications/notifications-model.js";
-import { MentorSession } from "./src/modules/mentoring/mentoring-model.js";
+import { MentorSession, MentorAssignment } from "./src/modules/mentoring/mentoring-model.js";
 import { RegistrarRequest, LorRequest } from "./src/modules/registrar/registrar-model.js";
 import RevaluationRequest from "./src/modules/revaluation/revaluation-model.js";
 import { Fee, Payment } from "./src/modules/finance/finance-model.js";
@@ -71,10 +70,45 @@ async function seed() {
 
     // ─── Mentoring ─────────────────────────────────────────────────────────────
     await MentorSession.bulkCreate([
-      { mentor_id: PROF_ID, mentee_id: STUD_ID, title: "Career Guidance Session", scheduled_at: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000), status: "pending", notes: "Discuss career options after graduation." },
-      { mentor_id: PROF_ID, mentee_id: STUD_ID, title: "Research Opportunities", scheduled_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), status: "accepted", notes: "Explore research internship options." },
-      { mentor_id: PROF_ID, mentee_id: STUD_ID, title: "Academic Performance Review", scheduled_at: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000), status: "completed", notes: "Reviewed mid-term performance." },
+      {
+        mentor_id: PROF_ID, mentee_id: STUD_ID,
+        title: "Career Guidance Session",
+        preferred_date: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
+        preferred_time: "10:00",
+        mode: "Offline",
+        agenda: "Discuss career options after graduation.",
+        scheduled_at: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000),
+        status: "pending",
+        notes: "Discuss career options after graduation.",
+      },
+      {
+        mentor_id: PROF_ID, mentee_id: STUD_ID,
+        title: "Research Opportunities",
+        preferred_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
+        preferred_time: "14:00",
+        mode: "Online",
+        agenda: "Explore research internship options.",
+        scheduled_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        status: "accepted",
+        notes: "Explore research internship options.",
+      },
+      {
+        mentor_id: PROF_ID, mentee_id: STUD_ID,
+        title: "Academic Performance Review",
+        preferred_date: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
+        preferred_time: "11:00",
+        mode: "Offline",
+        agenda: "Reviewed mid-term performance.",
+        scheduled_at: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
+        status: "completed",
+        notes: "Reviewed mid-term performance.",
+      },
     ]);
+    // Assign prof as mentor to student
+    const existingAssignment = await MentorAssignment.findOne({ where: { student_id: STUD_ID, is_active: true } });
+    if (!existingAssignment) {
+      await MentorAssignment.create({ student_id: STUD_ID, mentor_id: PROF_ID });
+    }
     console.log(" Mentoring sessions seeded");
 
     // ─── Registrar Requests ────────────────────────────────────────────────────

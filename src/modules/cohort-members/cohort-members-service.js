@@ -3,7 +3,7 @@ import CohortMember from "./cohort-members-model.js";
 import { CohortParticipant } from "../cohort/cohort-model.js";
 import User from "../auth/auth-model.js";
 
-// GET /cohort/:cohortId/members?limit=2000&page=1
+// GET /cohort/:cohortId/members
 export const getMembers = async (cohortId, { limit = 2000, page = 1 } = {}) => {
   const offset = (Number(page) - 1) * Number(limit);
   const { rows, count } = await CohortMember.findAndCountAll({

@@ -1,5 +1,3 @@
-// docker cp seed-registrar-revaluation.js joineazy_erp_backend-backend-1:/app/seed-registrar-revaluation.js
-// docker-compose exec backend node seed-registrar-revaluation.js
 
 import sequelize          from "./src/database/connection.js";
 import User               from "./src/modules/auth/auth-model.js";

@@ -3,13 +3,31 @@ import { CohortAssignment, AssignmentSubmission } from "./cohort-assignments-mod
 import { notify } from "../../utils/notification-helper.js";
 
 // GET /cohort/:cohortId/assignments
-export const getAssignments = async (cohortId) => {
+export const getAssignments = async (cohortId, studentId = null) => {
   const rows = await CohortAssignment.findAll({
     where: { cohort_id: String(cohortId) },
-    include: [{ model: AssignmentSubmission, as: "submissions", attributes: ["id", "student_id", "grade", "submitted_at"] }],
+    include: [{ model: AssignmentSubmission, as: "submissions", attributes: ["id", "student_id", "grade", "submitted_at", "link", "note"] }],
     order: [["deadline", "ASC"]],
   });
-  return { assignments: rows.map((a) => a.toJSON()) };
+
+  const assignments = rows.map((a) => {
+    const json = a.toJSON();
+    const mySubmission = studentId
+      ? json.submissions?.find((s) => String(s.student_id) === String(studentId))
+      : null;
+
+    return {
+      ...json,
+      name:           json.title,
+      submissionLink: json.submission_link,
+      isSubmitted:    !!mySubmission,
+      submittedAt:    mySubmission?.submitted_at || null,
+      submittedLink:  mySubmission?.link || null,
+      grade:          mySubmission?.grade || null,
+    };
+  });
+
+  return { assignments };
 };
 
 // POST /cohort/:cohortId/assignments
@@ -70,9 +88,10 @@ export const gradeSubmission = async (assignmentId, body) => {
 export const getSubmissionStatus = async (cohortId, userId, assignmentIds = null) => {
   const where = { student_id: userId };
   if (assignmentIds) where.assignment_id = assignmentIds;
-  const subs = await AssignmentSubmission.findAll({ where, attributes: ["assignment_id","grade","marks_awarded","submitted_at"] });
+  const subs = await AssignmentSubmission.findAll({ where, attributes: ["assignment_id", "grade", "submitted_at", "link"] });
   return { submissions: subs.map(s => s.toJSON()) };
 };
+
 export const getAssignmentSubmissions = async (cohortId, assignmentId) => {
   const submissions = await AssignmentSubmission.findAll({
     where: { assignment_id: assignmentId },
@@ -81,14 +100,26 @@ export const getAssignmentSubmissions = async (cohortId, assignmentId) => {
   return submissions.map((s) => s.toJSON());
 };
 
-export const submitAssignment = async (cohortId, assignmentId, student) => {
+// POST /cohort/:cohortId/assignments/:assignmentId/submit
+export const submitAssignment = async (cohortId, assignmentId, student, body = {}, fileUrl = null) => {
   const [submission, created] = await AssignmentSubmission.findOrCreate({
     where: { assignment_id: assignmentId, student_id: student.id },
     defaults: {
       student_name: student.name,
       submitted_at: new Date(),
+      link: fileUrl || body.link || null,
+      note: body.note || null,
     },
   });
+
+  if (!created) {
+    await submission.update({
+      submitted_at: new Date(),
+      link: fileUrl || body.link || submission.link,
+      note: body.note || submission.note,
+    });
+  }
+
   return { submission: submission.toJSON(), already_submitted: !created };
 };
 
@@ -96,11 +127,7 @@ export const unsubmitAssignment = async (cohortId, assignmentId, studentId) => {
   const submission = await AssignmentSubmission.findOne({
     where: { assignment_id: assignmentId, student_id: studentId },
   });
-  if (!submission) {
-    const e = new Error("Submission not found");
-    e.statusCode = 404;
-    throw e;
-  }
+  if (!submission) { const e = new Error("Submission not found"); e.statusCode = 404; throw e; }
   await submission.destroy();
   return { deleted: true };
 };

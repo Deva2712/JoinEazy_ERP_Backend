@@ -111,6 +111,40 @@ export const getDashboardOverview = asyncHandler(async (req, res) => {
   const formattedCreated = await Promise.all(createdCohorts.map(format));
   const formattedJoined  = await Promise.all(joinedCohorts.map(format));
 
+  // ── Flat todoAssignments + upcomingMeetings lists ──────────────────────────
+    const { default: CohortMeeting } = await import("../cohort-meetings/cohort-meetings-model.js");
+  const allCohortIds = [...createdCohorts, ...joinedCohorts].map((c) => c.id);
+
+  let todoAssignments = [];
+  let upcomingMeetings = [];
+
+  if (allCohortIds.length > 0) {
+    const assignments = await CohortAssignment.findAll({ where: { cohort_id: { [Op.in]: allCohortIds } } });
+
+    // Only assignments this user hasn't submitted yet count as "todo" for a student
+    const mySubmissions = await AssignmentSubmission.findAll({
+      where: { student_id: userId, assignment_id: { [Op.in]: assignments.map((a) => a.id) } },
+      attributes: ["assignment_id"],
+    });
+    const submittedIds = new Set(mySubmissions.map((s) => s.assignment_id));
+
+    todoAssignments = assignments
+      .filter((a) => !submittedIds.has(a.id))
+      .map((a) => ({
+        id: a.id,
+        cohortId: a.cohort_id,
+        title: a.title,
+        dueDate: a.deadline,
+      }));
+
+    const meetings = await CohortMeeting.findAll({ where: { cohort_id: { [Op.in]: allCohortIds } } });
+    upcomingMeetings = meetings.map((m) => ({
+      id: m.id,
+      cohortId: m.cohort_id,
+      scheduledAt: m.scheduled_at,
+    }));
+  }
+
   // Fetch full user profile so Settings page gets all saved fields
   const User = (await import("../auth/auth-model.js")).default;
   const fullUser = await User.findByPk(req.user.id, { attributes: { exclude: ["password"] } });
@@ -122,6 +156,9 @@ export const getDashboardOverview = asyncHandler(async (req, res) => {
       user: userPayload,
       createdCohorts: formattedCreated,
       joinedCohorts:  formattedJoined,
+      cohorts:        [...formattedCreated, ...formattedJoined],
+      todoAssignments,
+      upcomingMeetings,
     },
   });
 });

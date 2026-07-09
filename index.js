@@ -41,7 +41,8 @@ import "./src/modules/courses/courses-model.js";
 import "./src/modules/attendance/attendance-model.js";
 import "./src/modules/revaluation/revaluation-model.js";
 import "./src/modules/hostel/hostel-model.js";
-
+import "./src/modules/placement/placement-model.js";
+import "./src/modules/examination/examination-model.js";
 
 const PORT = process.env.PORT || 8000;
 

@@ -11,7 +11,13 @@ export const getLibraryDashboard = async (userId) => {
 
   return {
     admins:    [],
-    requests:  requests.map((r) => r.toJSON()),
+    requests:  requests.map((r) => ({
+      ...r.toJSON(),
+      bookTitle:    r.book_title,
+      requestDate:  r.request_date,
+      durationDays: r.duration_days,
+      dueDate:      r.due_date,
+    })),
     borrowed:  borrowed.map((r) => ({
       id:           r.id,
       bookTitle:    r.book_title,

@@ -6,6 +6,10 @@ const formatResearch = (r, userId = null) => {
   const myApp = userId
     ? (json.applications || []).find((a) => a.applicant_id === String(userId))
     : null;
+  // starsCount = total starred applications for this research
+  const starsCount = (json.applications || []).filter(a => a.is_starred).length;
+  const isTrending = starsCount >= 3;  
+
   return {
     id:                json.id,
     title:             json.title,
@@ -18,6 +22,8 @@ const formatResearch = (r, userId = null) => {
     tags:              json.tags || [],
     collaborators:     json.collaborators || [],
     isStarred:         myApp?.is_starred || false,
+    starsCount,
+    isTrending,
     hasApplied:        !!myApp,
     applicationStatus: myApp?.status || null,
     isOwner:           userId ? json.created_by === String(userId) : false,
@@ -25,25 +31,12 @@ const formatResearch = (r, userId = null) => {
     roles:             json.roles || [],
     applications:      json.applications || [],
     applicants:        (json.applications || []).map(a => ({
-      id:          a.id,
+      id:         a.id,
       applicantId: a.applicant_id,
-      roleTitle:   a.role_title,
-      status:      a.status,
-      message:     a.message,
+      roleTitle:  a.role_title,
+      status:     a.status,
+      message:    a.message,
     })),
-    // Trending/Popular ke liye metrics
-    starsCount:      (json.applications || []).filter(a => a.is_starred).length,
-    applicantsCount: (json.applications || []).filter(a => a.status !== "withdrawn").length,
-    // trendingScore — stars + applicants dono milake, recent projects ko extra boost
-    trendingScore: (() => {
-      const stars     = (json.applications || []).filter(a => a.is_starred).length;
-      const applicants = (json.applications || []).filter(a => a.status !== "withdrawn").length;
-      const createdAt  = new Date(json.created_at || json.createdAt || 0);
-      const ageInDays  = (Date.now() - createdAt.getTime()) / (1000 * 60 * 60 * 24);
-      // recent projects (last 30 days) ko 1.5x boost
-      const recencyBoost = ageInDays <= 30 ? 1.5 : 1;
-      return ((stars * 2) + applicants) * recencyBoost;
-    })(),
     createdAt: json.created_at || json.createdAt,
   };
 };
@@ -64,13 +57,22 @@ export const getDashboard = async (userId) => {
 
   const myProjects      = myResearch.filter(r => r.type !== "Publication").map(r => formatResearch(r, uid));
   const myPublications  = myResearch.filter(r => r.type === "Publication").map(r => formatResearch(r, uid));
-  const discover        = allOpen.filter(r => r.created_by !== uid && r.type !== "Publication").map(r => formatResearch(r, uid));
+
+  // Available for discovery — not created by this user, not already applied
+  const appliedIds      = new Set(myApplications.map(a => String(a.research_id)));
+  const discover        = allOpen
+    .filter(r => r.created_by !== uid && r.type !== "Publication" && !appliedIds.has(String(r.id)))
+    .map(r => formatResearch(r, uid));
+  const availablePublications = allOpen
+    .filter(r => r.created_by !== uid && r.type === "Publication" && !appliedIds.has(String(r.id)))
+    .map(r => formatResearch(r, uid));
 
   return {
-    projects:      myProjects,
-    publications:  myPublications,
+    projects:             myProjects,
+    publications:         myPublications,
     discover,
-    applications:  myApplications.map(a => a.toJSON()),
+    availablePublications,
+    applications:         myApplications.map(a => a.toJSON()),
   };
 };
 
@@ -183,17 +185,7 @@ export const starResearch = async (researchId, userId) => {
     defaults: { is_starred: true },
   });
   await app.update({ is_starred: !app.is_starred });
-
-  // Updated project with new starsCount return karo
-  const fresh = await Research.findByPk(researchId, { include: includeOpts });
-  const formatted = fresh ? formatResearch(fresh, userId) : null;
-
-  return {
-    is_starred:  app.is_starred,
-    starsCount:  formatted?.starsCount  ?? 0,
-    trendingScore: formatted?.trendingScore ?? 0,
-    project:     formatted,
-  };
+  return { is_starred: app.is_starred };
 };
 
 export const handleApplication = async (applicationId, action, details = {}) => {
@@ -233,4 +225,75 @@ export const updateUserProfile = async (userId, data) => {
     avatar_url: data.avatarUrl  ?? profile.avatar_url,
   });
   return profile.toJSON();
+};
+// ─── Student Research Dashboard ───────────────────────────────────────────────
+// GET /student/research/dashboard
+// Returns shape expected by StudentResearchUI:
+// { myProjects, myPublications, availableProjects, availablePublications, myApplications, allUsers }
+
+export const getStudentDashboard = async (studentId) => {
+  const uid = String(studentId);
+
+  const [joinedResearch, allOpen, myApplications, allUsers] = await Promise.all([
+    // Projects/publications this student is part of (applied + accepted)
+    ResearchApplication.findAll({
+      where: { applicant_id: uid, status: "accepted" },
+      include: [{ model: Research, include: includeOpts }],
+    }),
+    // All open research (available to apply)
+    Research.findAll({ where: { status: "open" }, include: includeOpts }),
+    // All applications by this student
+    ResearchApplication.findAll({ where: { applicant_id: uid } }),
+    // All users for "allUsers" (used in explore view collaborators)
+    (await import("../auth/auth-model.js")).default.findAll({
+      attributes: ["id", "name", "email", "role", "department", "designation"],
+    }),
+  ]);
+
+  const appliedIds = new Set(myApplications.map(a => String(a.research_id)));
+
+  // My projects = accepted applications where type != Publication
+  const myProjects = joinedResearch
+    .filter(a => a.Research?.type !== "Publication")
+    .map(a => formatResearch(a.Research, uid));
+
+  // My publications = accepted applications where type == Publication
+  const myPublications = joinedResearch
+    .filter(a => a.Research?.type === "Publication")
+    .map(a => formatResearch(a.Research, uid));
+
+  // Available = open research not created by student and not already applied
+  const availableProjects = allOpen
+    .filter(r => r.created_by !== uid && r.type !== "Publication" && !appliedIds.has(String(r.id)))
+    .map(r => formatResearch(r, uid));
+
+  const availablePublications = allOpen
+    .filter(r => r.created_by !== uid && r.type === "Publication" && !appliedIds.has(String(r.id)))
+    .map(r => formatResearch(r, uid));
+
+  // Format applications for MyApplicationsTab
+  const formattedApplications = await Promise.all(
+    myApplications.map(async (a) => {
+      const research = await Research.findByPk(a.research_id, { include: includeOpts });
+      return {
+        id:          a.id,
+        researchId:  a.research_id,
+        status:      a.status,
+        appliedAt:   a.createdAt,
+        itemType:    a.item_type || (research?.type === "Publication" ? "Publication" : "Project"),
+        title:       research?.title || "Unknown",
+        description: research?.description || "",
+        category:    research?.category || "",
+      };
+    })
+  );
+
+  return {
+    myProjects,
+    myPublications,
+    availableProjects,
+    availablePublications,
+    myApplications: formattedApplications,
+    allUsers:       allUsers.map(u => u.toJSON()),
+  };
 };

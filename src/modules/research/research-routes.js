@@ -15,7 +15,7 @@ router.put("/update/:id",               ctrl.update);
 
 // Roles
 router.post("/:researchId/roles/create",             ctrl.createRole);
-router.put("/:researchId/roles/update/:roleIndex",   ctrl.updateRole);
+router.put("/:researchId/roles/update/:roleId",      ctrl.updateRole);
 router.delete("/:researchId/roles/delete/:roleId",   ctrl.deleteRole);
 
 // Timeline

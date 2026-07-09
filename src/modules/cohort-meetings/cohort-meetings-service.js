@@ -1,5 +1,7 @@
 // src/modules/cohort-meetings/cohort-meetings-service.js
 import CohortMeeting from "./cohort-meetings-model.js";
+import { MeetingRequest } from "../schedule/schedule-model.js";
+import { Cohort } from "../cohort/cohort-model.js";
 
 export const getMeetings = async (cohortId) => {
   const meetings = await CohortMeeting.findAll({
@@ -48,29 +50,52 @@ export const deleteMeeting = async (cohortId, meetingId, authorId, userRole) => 
 };
 const isValidUUID = (id) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
 
+const fmtStudentMeeting = (m) => {
+  const json = m.toJSON();
+  return {
+    id: json.id,
+    professorName: json.professor_name || "Professor",
+    reason: json.description || "",
+    dateTime: json.scheduled_at,
+    requestedTime: json.scheduled_at,
+    submittedAt: json.createdAt,
+    status: json.status,
+  };
+};
+
 export const getStudentMeetings = async (cohortId, studentId) => {
   if (!isValidUUID(cohortId) || !isValidUUID(studentId)) return [];
-  return (await CohortMeeting.findAll({
+  const meetings = await CohortMeeting.findAll({
     where: { cohort_id: cohortId, student_id: studentId, status: "accepted" },
     order: [["scheduled_at", "ASC"]],
-  })).map(m => m.toJSON());
+  });
+  return meetings.map(fmtStudentMeeting);
 };
 
 export const getStudentMeetingRequests = async (cohortId, studentId) => {
   if (!isValidUUID(cohortId) || !isValidUUID(studentId)) return [];
-  return (await CohortMeeting.findAll({
+  const meetings = await CohortMeeting.findAll({
     where: { cohort_id: cohortId, student_id: studentId, status: "pending" },
     order: [["created_at", "DESC"]],
-  })).map(m => m.toJSON());
+  });
+  return meetings.map(fmtStudentMeeting);
 };
 
-export const createMeetingRequest = async (cohortId, studentId, data) =>
-  (await CohortMeeting.create({
-    cohort_id: cohortId, student_id: studentId,
-    professor_id: data.professor_id, title: data.title,
-    description: data.description || null,
-    scheduled_at: data.proposed_date || null, status: "pending",
-  })).toJSON();
+export const createMeetingRequest = async (cohortId, student, data) => {
+  const meeting = await CohortMeeting.create({
+    cohort_id: cohortId,
+    created_by: student.id,
+    created_by_name: student.name,
+    student_id: student.id,
+    professor_id: data.professor_id || data.professorId || null,
+    professor_name: data.professorName || null,
+    title: data.title || `Meeting request to ${data.professorName || "Professor"}`,
+    description: data.reason || data.description || null,
+    scheduled_at: data.dateTime || data.scheduled_at || data.proposed_date,
+    status: "pending",
+  });
+  return fmtStudentMeeting(meeting);
+};
 
 export const cancelMeetingRequest = async (cohortId, requestId, studentId) => {
   const m = await CohortMeeting.findOne({ where: { id: requestId, cohort_id: cohortId, student_id: studentId } });
