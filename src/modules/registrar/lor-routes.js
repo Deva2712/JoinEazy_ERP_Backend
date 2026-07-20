@@ -21,6 +21,10 @@ const normalizeLor = (r) => ({
   lorFileUrl:       r.lor_file_url  || r.lorFileUrl    || null,
   supportingDocFileName: r.supporting_doc_url || r.supportingDocFileName || null,
   urgency:          r.urgency       || null,
+  // FIX: RegistrarUI needs these to render meeting accept/cancel state — neither was
+  // ever included in the normalized shape.
+  meetingTime:      r.meeting_time   || r.meetingTime   || null,
+  meetingStatus:    r.meeting_status || r.meetingStatus || null,
 });
 
 router.get("/requests", protect, asyncHandler(async (req, res) => {
@@ -40,7 +44,7 @@ router.delete("/requests/:requestId", protect, asyncHandler(async (req, res) => 
   res.json({ success: true, data });
 }));
 
-// PATCH /lor/requests/:id — prof approve / reject / submit (status field se differentiate)
+// PATCH /lor/requests/:id — prof approve / reject (status field se differentiate)
 router.patch("/requests/:requestId", protect, authorize("professor", "admin", "hod"),
   ...upload("lorFile", "registrar/lor-files"),
   asyncHandler(async (req, res) => {
@@ -62,11 +66,35 @@ router.patch("/requests/:requestId", protect, authorize("professor", "admin", "h
   })
 );
 
+// POST /lor/requests/:id/submit — prof uploads final LoR file
+// FIX: Lor.service.js's submitLor() actually calls POST .../submit (multipart, field name
+// "lorFile"), not the PATCH above — that PATCH branch for "Submitted" was unreachable dead
+// code since nothing ever sent status:"Submitted" to the PATCH endpoint. This route is what
+// the frontend genuinely hits.
+router.post("/requests/:requestId/submit", protect, authorize("professor", "admin", "hod"),
+  ...upload("lorFile", "registrar/lor-files"),
+  asyncHandler(async (req, res) => {
+    const data = await svc.submitLor(req.params.requestId, req.body.professorRemarks || null, req.file || null);
+    res.json({ success: true, data });
+  })
+);
+
 // POST /lor/requests/:id/meeting — schedule meeting
 router.post("/requests/:requestId/meeting", protect, asyncHandler(async (req, res) => {
   const data = await svc.scheduleLorMeeting(
     req.params.requestId, req.user.id, req.body.meetingTime || req.body.requestedTime
   );
+  res.json({ success: true, data });
+}));
+
+// PATCH /lor/requests/:id/meeting — accept or cancel a proposed meeting
+// existed, so both actions always 404'd.
+router.patch("/requests/:requestId/meeting", protect, asyncHandler(async (req, res) => {
+  const { meetingStatus } = req.body;
+  if (!["Accepted", "Cancelled"].includes(meetingStatus)) {
+    return res.status(400).json({ success: false, error: "Invalid meetingStatus" });
+  }
+  const data = await svc.updateLorMeetingStatus(req.params.requestId, meetingStatus);
   res.json({ success: true, data });
 }));
 

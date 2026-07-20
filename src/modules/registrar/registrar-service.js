@@ -126,6 +126,15 @@ export const rejectLorRequest = async (requestId, remarks) => {
 export const scheduleLorMeeting = async (requestId, userId, meetingTime) => {
   const request = await LorRequest.findOne({ where: { id: requestId, student_id: userId } });
   if (!request) { const err = new Error("LOR request not found"); err.statusCode = 404; throw err; }
-  await request.update({ meeting_time: meetingTime });
+  await request.update({ meeting_time: meetingTime, meeting_status: "Proposed" });
+  return request.toJSON();
+};
+
+//acceptMeeting/cancelMeeting on the frontend PATCH `{ meetingStatus: "Accepted" |
+// "Cancelled" }` — no service function or route ever handled this at all.
+export const updateLorMeetingStatus = async (requestId, meetingStatus) => {
+  const request = await LorRequest.findByPk(requestId);
+  if (!request) { const err = new Error("LOR request not found"); err.statusCode = 404; throw err; }
+  await request.update({ meeting_status: meetingStatus });
   return request.toJSON();
 };

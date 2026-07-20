@@ -8,6 +8,13 @@ const Research = sequelize.define("Research", {
   title:       { type: DataTypes.STRING, allowNull: false },
   description: { type: DataTypes.TEXT, allowNull: true },
   type:        { type: DataTypes.STRING, defaultValue: "research" }, // research, publication
+  // FIX: PostResearchModal Step-1 collects `category` (e.g. "Artificial Intelligence") but
+  // the column didn't exist at all, so it was silently discarded on every create/update —
+  // every item's category came back undefined and the UI fell back to "General" for all of
+  // them. Run a migration / `sequelize.sync({ alter: true })` after pulling this.
+  category:    { type: DataTypes.STRING, allowNull: true },
+  // FIX: PostResearchModal's status <select> only ever offers "Open"/"Closed" — "closed"
+  // wasn't in this enum at all, so setting a project to Closed always failed validation.
   status:      { type: DataTypes.ENUM("open", "active", "completed", "on_hold", "closed"), defaultValue: "open" },
   start_date:  { type: DataTypes.DATEONLY, allowNull: true },
   end_date:    { type: DataTypes.DATEONLY, allowNull: true },
@@ -15,17 +22,6 @@ const Research = sequelize.define("Research", {
   is_starred:  { type: DataTypes.BOOLEAN, defaultValue: false },
   tags:        { type: DataTypes.JSON, defaultValue: [] },
   collaborators: { type: DataTypes.JSON, defaultValue: [] },
-  // Publication-specific
-  doi:             { type: DataTypes.STRING, allowNull: true },
-  journal_details: { type: DataTypes.STRING, allowNull: true },
-  link:            { type: DataTypes.STRING, allowNull: true },
-  co_authors:      { type: DataTypes.JSON, defaultValue: [] },
-  published_date:  { type: DataTypes.DATEONLY, allowNull: true },
-  // Project-specific
-  funding_details:            { type: DataTypes.TEXT, allowNull: true },
-  collaboration_type:         { type: DataTypes.STRING, allowNull: true },
-  collaboration_instructions: { type: DataTypes.TEXT, allowNull: true },
-  keywords:        { type: DataTypes.JSON, defaultValue: [] },
 }, {
   tableName: "research_projects",
   timestamps: true,
@@ -49,10 +45,12 @@ const ResearchApplication = sequelize.define("ResearchApplication", {
   id:           { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
   research_id:  { type: DataTypes.UUID, allowNull: false },
   applicant_id: { type: DataTypes.STRING, allowNull: false }, // FIX: STRING not UUID
-  role_id:      { type: DataTypes.UUID, allowNull: true },
   role_title:   { type: DataTypes.STRING, allowNull: true },
-  status:       { type: DataTypes.ENUM("pending", "accepted", "rejected"), defaultValue: "pending" },
+  status:       { type: DataTypes.ENUM("pending", "accepted", "rejected", "starred"), defaultValue: "pending" },
   message:      { type: DataTypes.TEXT, allowNull: true },
+  // FIX: handleApplication() previously wrote the professor's accept/reject feedback into
+  // this same `message` column, silently erasing the applicant's original statement of
+  // interest. A separate column keeps both.
   professor_notes: { type: DataTypes.TEXT, allowNull: true },
   is_starred:   { type: DataTypes.BOOLEAN, defaultValue: false },
 }, {
@@ -84,6 +82,6 @@ const ResearchUserProfile = sequelize.define("ResearchUserProfile", {
 Research.hasMany(ResearchRole,        { foreignKey: "research_id", as: "roles",        onDelete: "CASCADE" });
 Research.hasMany(ResearchApplication, { foreignKey: "research_id", as: "applications", onDelete: "CASCADE" });
 ResearchRole.belongsTo(Research,        { foreignKey: "research_id" });
-ResearchApplication.belongsTo(Research, { foreignKey: "research_id" });
+ResearchApplication.belongsTo(Research, { foreignKey: "research_id", as: "Research" });
 
 export { Research, ResearchRole, ResearchApplication, ResearchUserProfile };

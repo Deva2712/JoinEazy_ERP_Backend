@@ -92,11 +92,20 @@ export const rejectRequest = async (requestId, remarks) => {
   return { request: req };
 };
 
-export const updateResult = async (requestId, revisedMarks) => {
+export const updateResult = async (requestId, data) => {
   const req = await RevaluationRequest.findByPk(requestId);
   if (!req) { const err = new Error("Request not found"); err.statusCode = 404; throw err; }
-  await req.update({ revised_marks: revisedMarks, status: "resolved" });
-  return { request: req };
+  // FIX: frontend (UploadResultModal) sends { revisedMarks, revisedGrade, remarks } but
+  // the old signature only accepted revisedMarks — so revisedGrade and professor remarks
+  // were silently discarded. History tab showed blank remarks and grade was missing.
+  const revisedMarks = data?.revisedMarks ?? data;   // backward-compat with old numeric arg
+  await req.update({
+    revised_marks: revisedMarks,
+    revised_grade: data?.revisedGrade ?? null,
+    remarks:       data?.remarks      ?? null,
+    status:        "resolved",
+  });
+  return { request: fmtRequest(req) };
 };
 
 // ─── Student ───────────────────────────────────────────────────────────────────
@@ -106,8 +115,19 @@ export const getStudentOverview = async (studentId) => {
     getSubjects(studentId),
   ]);
   const formatted = requests.map((r) => fmtRequest(r));
+  // FIX: frontend (RevaluationController.jsx) reads response.data.stats.totalRequests,
+  // stats.pending etc — but this function previously only returned overview.total (singular)
+  // with no breakdown, so all three stat cards on the banner were always undefined/0.
+  const stats = {
+    totalRequests: formatted.length,
+    pending:       formatted.filter(r => r.status === "Pending").length,
+    underReview:   formatted.filter(r => r.status === "UnderReview").length,
+    approved:      formatted.filter(r => r.status === "Approved").length,
+    rejected:      formatted.filter(r => r.status === "Rejected").length,
+  };
   return {
     overview: { total: formatted.length },
+    stats,
     requests: formatted,
     eligibleSubjects,
   };

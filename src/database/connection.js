@@ -27,10 +27,8 @@ const sequelize = new Sequelize(
 export const connectDB = async () => {
   await sequelize.authenticate();
   logger.info("PostgreSQL connected via Sequelize");
-  if (process.env.NODE_ENV === "development") {
-    await sequelize.sync({ alter: true });
-    logger.info("Database synced");
-  }
+  await sequelize.sync({ alter: true });
+  logger.info("Database synced");
 };
 
 export default sequelize;

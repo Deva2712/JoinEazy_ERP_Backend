@@ -25,6 +25,8 @@ const LorRequest = sequelize.define("LorRequest", {
   status:       { type: DataTypes.ENUM("pending","accepted","rejected","completed"), defaultValue: "pending" },
   remarks:      { type: DataTypes.TEXT, allowNull: true },
   meeting_time: { type: DataTypes.DATE, allowNull: true },
+  // nowhere to store it and no route/service function handled these calls at all.
+  meeting_status: { type: DataTypes.ENUM("Proposed", "Accepted", "Cancelled"), allowNull: true },
   supporting_doc_url: { type: DataTypes.STRING(1000), allowNull: true },
   lor_file_url:       { type: DataTypes.STRING(1000), allowNull: true },
 }, { tableName: "lor_requests", timestamps: true });

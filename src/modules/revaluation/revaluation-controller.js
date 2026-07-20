@@ -12,10 +12,15 @@ export const accept = asyncHandler(async (req, res) => {
   res.status(200).json({ success: true, ...(await service.acceptRequest(req.params.requestId)) });
 });
 export const reject = asyncHandler(async (req, res) => {
-  res.status(200).json({ success: true, ...(await service.rejectRequest(req.params.requestId, req.body.remarks)) });
+  // FIX: frontend ProfessorRevaluation.service.js sends body: { reason } but this was
+  // reading req.body.remarks — so professor's rejection reason was always undefined/null.
+  const remarks = req.body.remarks ?? req.body.reason ?? null;
+  res.status(200).json({ success: true, ...(await service.rejectRequest(req.params.requestId, remarks)) });
 });
 export const result = asyncHandler(async (req, res) => {
-  res.status(200).json({ success: true, ...(await service.updateResult(req.params.requestId, req.body.revised_marks)) });
+  // FIX: previously passed only req.body.revised_marks — now passes full body so
+  // revisedGrade and remarks are also picked up by the updated updateResult().
+  res.status(200).json({ success: true, ...(await service.updateResult(req.params.requestId, req.body)) });
 });
 
 // Student
