@@ -130,7 +130,7 @@ export const createRole = async (researchId, roleData, requester) => {
     research_id: researchId,
     title:       roleData.title ?? roleData.roleName,
     description: roleData.description || null,
-    vacancies:   roleData.vacancies || 1,
+    vacancies:   roleData.vacancies ?? 1,
     skills:      roleData.skills || [],
   });
   const roles = await ResearchRole.findAll({ where: { research_id: researchId } });
@@ -214,6 +214,16 @@ export const applyToResearch = async (researchId, profId, data = {}) => {
   // applications list instead of a clear error.
   const project = await Research.findByPk(researchId);
   if (!project) { const e = new Error("Research not found"); e.statusCode = 404; throw e; }
+  // FIX: same vacancies guard as student-research-service.js's applyToResearch.
+  const roleTitle = data.roleTitle ?? data.roleName ?? data.roleId ?? null;
+  if (roleTitle) {
+    const role = await ResearchRole.findOne({ where: { research_id: researchId, title: roleTitle } });
+    if (role && role.vacancies <= 0) {
+      const e = new Error("This role has no open vacancies left.");
+      e.statusCode = 409;
+      throw e;
+    }
+  }
   const [app, created] = await ResearchApplication.findOrCreate({
     where: { research_id: researchId, applicant_id: String(profId) },
     defaults: {
@@ -221,7 +231,18 @@ export const applyToResearch = async (researchId, profId, data = {}) => {
       message:    data.message   ?? data.justification            ?? null,
     },
   });
-  return { application: app.toJSON(), already_applied: !created };
+  // FIX: same star-then-apply data loss as student-research-service.js — a pre-existing
+  // "starred" row was found-not-created here and never promoted to a real application.
+  let alreadyApplied = !created;
+  if (!created && app.status === "starred") {
+    await app.update({
+      status:     "pending",
+      role_title: data.roleTitle ?? data.roleName ?? data.roleId ?? app.role_title,
+      message:    data.message   ?? data.justification            ?? app.message,
+    });
+    alreadyApplied = false;
+  }
+  return { application: app.toJSON(), already_applied: alreadyApplied };
 };
 
 export const starResearch = async (researchId, profId) => {
@@ -303,6 +324,15 @@ export const handleApplication = async (applicationId, action, details = {}, req
       const collaborators = Array.isArray(project.collaborators) ? project.collaborators : [];
       if (!collaborators.includes(applicantName)) {
         await project.update({ collaborators: [...collaborators, applicantName] });
+      }
+    }
+    // FIX (functional gap): accepting never touched the role's vacancy count, so a role
+    // with vacancies:1 stayed open forever and kept accepting new applicants indefinitely.
+    // Decrement it here (floored at 0) now that applyToResearch also checks this count.
+    if (app.role_title) {
+      const role = await ResearchRole.findOne({ where: { research_id: app.research_id, title: app.role_title } });
+      if (role && role.vacancies > 0) {
+        await role.update({ vacancies: role.vacancies - 1 });
       }
     }
   }

@@ -79,6 +79,18 @@ export const applyToResearch = async (researchId, studentId, data = {}) => {
   // applications list instead of a clear error.
   const project = await Research.findByPk(researchId);
   if (!project) { const e = new Error("Research not found"); e.statusCode = 404; throw e; }
+  // FIX (functional gap): accepting an applicant never reduced the role's vacancy count or
+  // closed it off, so a role with vacancies:1 kept accepting unlimited new applicants forever
+  // — nothing here ever checked "is this role actually still open" before letting a student in.
+  const roleTitle = data.roleTitle ?? data.roleName ?? data.roleId ?? null;
+  if (roleTitle) {
+    const role = await ResearchRole.findOne({ where: { research_id: researchId, title: roleTitle } });
+    if (role && role.vacancies <= 0) {
+      const e = new Error("This role has no open vacancies left.");
+      e.statusCode = 409;
+      throw e;
+    }
+  }
   const [app, created] = await ResearchApplication.findOrCreate({
     where: { research_id: researchId, applicant_id: String(studentId) },
     defaults: {
@@ -86,7 +98,22 @@ export const applyToResearch = async (researchId, studentId, data = {}) => {
       message:    data.message   ?? data.justification            ?? null,
     },
   });
-  return { application: app.toJSON(), already_applied: !created };
+  // FIX: a row can already exist here in "starred" state (created by starResearch()
+  // before the student ever applied). findOrCreate() only sets `defaults` on true
+  // creation, so a starred row was found-not-created and silently kept status "starred"
+  // with no role_title/message forever — the real application data was never saved and
+  // the item never showed up as pending anywhere (student's list or professor's review).
+  // Promote it into a real application on first apply.
+  let alreadyApplied = !created;
+  if (!created && app.status === "starred") {
+    await app.update({
+      status:     "pending",
+      role_title: data.roleTitle ?? data.roleName ?? data.roleId ?? app.role_title,
+      message:    data.message   ?? data.justification            ?? app.message,
+    });
+    alreadyApplied = false;
+  }
+  return { application: app.toJSON(), already_applied: alreadyApplied };
 };
 
 // ─── Star ─────────────────────────────────────────────────────────────────────
@@ -131,7 +158,7 @@ export const getMyApplications = async (studentId) => {
     itemType:    a.Research?.type === "Publication" ? "Publication" : "Project",
     title:       a.Research?.title || "Unknown",
     description: a.Research?.description || "",
-    // FIX: same missing professorName as the dashboard's applications list.
+    // same missing professorName as the dashboard's applications list.
     professorName: a.Research ? (userMap.get(String(a.Research.created_by)) || null) : null,
   }));
 };

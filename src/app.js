@@ -24,6 +24,7 @@ import examRoutes    from "./modules/exam-duties/exam-duties-routes.js";
 import leaveRoutes   from "./modules/leave/leave-routes.js";
 import financeRoutes from "./modules/finance/finance-routes.js";
 import scheduleRoutes     from "./modules/schedule/schedule-routes.js";
+import profMentoringRoutes from "./modules/profmentoring/profmentoring-routes.js";
 import payrollRoutes      from "./modules/payroll/payroll-routes.js";
 import notificationRoutes from "./modules/notifications/notifications-routes.js";
 import researchRoutes        from "./modules/research/prof-research-routes.js";
@@ -33,6 +34,7 @@ import sessionRoutes      from "./modules/session-planning/session-planning-rout
 import assetRoutes        from "./modules/asset-request/asset-request-routes.js";
 import studentCourseRoutes from "./modules/courses/courses-routes.js";
 import dashboardRoutes    from "./modules/dashboard/dashboard-routes.js";
+import marksRoutes from "./modules/marks-management/marks-routes.js";
 import studentRoutes      from "./modules/attendance/attendance-routes.js";
 import registrarRoutes from "./modules/registrar/registrar-routes.js";
 import studentProfileRoutes from "./modules/student-profile/student-profile-routes.js";
@@ -49,6 +51,7 @@ import studentSessionsRoutes from "./modules/session-planning/student-sessions-r
 import hostelRoutes from "./modules/hostel/hostel-routes.js";
 import lorRoutes from "./modules/registrar/lor-routes.js";
 import examinationRoutes from "./modules/examination/examination-routes.js";
+
 
 const app = express();
 
@@ -105,9 +108,11 @@ app.use("/api/v1/research",         researchRoutes);
 app.use("/api/v1/student/research",  studentResearchRoutes);
 app.use("/api/v1/examination",       examinationRoutes);
 app.use("/api/v1/mentor", mentoringRoutes);
+app.use("/api/v1/profmentoring", profMentoringRoutes);
 app.use("/api/v1/sessions", sessionRoutes);
 app.use("/api/v1/student", studentSessionsRoutes);
 app.use("/api/v1/assets", assetRoutes);
+app.use("/api/v1/marks", marksRoutes)
 app.use("/api/v1/student/courses", studentCourseRoutes);
 app.use("/api/v1/user", dashboardRoutes);
 app.use("/api/v1/student", studentRoutes);

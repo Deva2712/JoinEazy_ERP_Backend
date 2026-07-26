@@ -24,6 +24,25 @@ export const getRequests = async (userId) => {
   return { requests: requests.map(r => r.toJSON()) };
 };
 
+// Frontend display string → DB ENUM value
+const TYPE_MAP = {
+  "bonafide certificate":         "bonafide",
+  "no dues certificate":          "no_dues",
+  "character certificate":        "character",
+  "conduct certificate":          "conduct",
+  "letter of recommendation":     "lor",
+  "official transcript (sealed)": "transcript",
+  "unofficial transcript":        "transcript",
+  "provisional transcript":       "provisional_transcript",
+  "transfer certificate (tc)":    "transfer_certificate",
+  "migration certificate":        "migration",
+  "10th grade mark sheet copy":   "marksheet_10",
+  "12th grade mark sheet copy":   "marksheet_12",
+  "cmm certificate":              "cmm",
+  "degree certificate":           "degree",
+};
+const mapType = (t) => TYPE_MAP[String(t || "").toLowerCase()] || "other";
+
 export const createRequest = async (userId, data, file = null) => {
   let supporting_doc_url = null;
   if (file) {
@@ -33,7 +52,7 @@ export const createRequest = async (userId, data, file = null) => {
 
   const request = await RegistrarRequest.create({
     student_id: userId,
-    type:       data.type?.toLowerCase() || "other",
+    type:       mapType(data.type),
     purpose:    data.purpose,
     copies:     data.copies || 1,
     urgency:    data.urgency || null,
@@ -126,15 +145,6 @@ export const rejectLorRequest = async (requestId, remarks) => {
 export const scheduleLorMeeting = async (requestId, userId, meetingTime) => {
   const request = await LorRequest.findOne({ where: { id: requestId, student_id: userId } });
   if (!request) { const err = new Error("LOR request not found"); err.statusCode = 404; throw err; }
-  await request.update({ meeting_time: meetingTime, meeting_status: "Proposed" });
-  return request.toJSON();
-};
-
-//acceptMeeting/cancelMeeting on the frontend PATCH `{ meetingStatus: "Accepted" |
-// "Cancelled" }` — no service function or route ever handled this at all.
-export const updateLorMeetingStatus = async (requestId, meetingStatus) => {
-  const request = await LorRequest.findByPk(requestId);
-  if (!request) { const err = new Error("LOR request not found"); err.statusCode = 404; throw err; }
-  await request.update({ meeting_status: meetingStatus });
+  await request.update({ meeting_time: meetingTime });
   return request.toJSON();
 };

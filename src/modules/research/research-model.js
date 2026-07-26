@@ -19,6 +19,10 @@ const Research = sequelize.define("Research", {
   start_date:  { type: DataTypes.DATEONLY, allowNull: true },
   end_date:    { type: DataTypes.DATEONLY, allowNull: true },
   timeline:    { type: DataTypes.JSON, defaultValue: [] },
+  // FIX: PostResearchModal collects a collaboration type (Individual/Team/Cross-department)
+  // and prof-research-service.js already reads/writes `collaboration_type`, but the column
+  // was never actually defined here — Sequelize silently dropped it on every create/update.
+  collaboration_type: { type: DataTypes.STRING, allowNull: true },
   is_starred:  { type: DataTypes.BOOLEAN, defaultValue: false },
   tags:        { type: DataTypes.JSON, defaultValue: [] },
   collaborators: { type: DataTypes.JSON, defaultValue: [] },

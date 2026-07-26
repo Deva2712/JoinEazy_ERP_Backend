@@ -215,6 +215,18 @@ export const createStudentRequest = async (studentId, data) => {
 export const cancelStudentRequest = async (requestId, studentId) => {
   const req = await RevaluationRequest.findOne({ where: { id: requestId, student_id: studentId } });
   if (!req) { const err = new Error("Request not found"); err.statusCode = 404; throw err; }
+  //  (data integrity): this previously destroyed the row regardless of status, so a
+  // student could delete a request the professor had already reviewed/resolved — wiping
+  // out revised marks/grade the professor entered. Only a request still awaiting the
+  // professor may be withdrawn.
+  if (!["pending", "under_review"].includes(req.status)) {
+    const err = new Error("This request has already been reviewed and can no longer be cancelled.");
+    err.statusCode = 409;
+    throw err;
+  }
+  // FIX: return the cancelled request's normalized status so callers (frontend stats
+  // counters) know which bucket to decrement instead of always assuming "pending".
+  const cancelledStatus = fmtRequest(req).status;
   await req.destroy();
-  return { message: "Request cancelled" };
+  return { message: "Request cancelled", cancelledStatus };
 };

@@ -1,5 +1,5 @@
 // src/modules/mentoring/mentoring-service.js
-import { MentorSession, MentorFeedback } from "./mentoring-model.js";
+import { MentorSession, MentorFeedback, MentorAssignment } from "./mentoring-model.js";
 import User from "../auth/auth-model.js";
 
 // ─── Formatters ───────────────────────────────────────────────────────────────
@@ -65,17 +65,29 @@ const fmtFeedback = (f) => {
 const CONFIRMED_STATUSES = ["accepted", "completed", "rescheduled"];
 const PENDING_STATUSES   = ["pending", "rejected"];
 
-// GET /mentor/dashboard
-export const getDashboard = async (studentId) => {
-  // Find assigned mentor via earliest session
+// Resolve the current mentor_id for a student.
+// MentorAssignment is the source of truth; earliest session is only a
+// fallback for legacy data that predates the assignment table.
+const resolveMentorId = async (studentId) => {
+  const assignment = await MentorAssignment.findOne({
+    where: { student_id: studentId, is_active: true },
+  });
+  if (assignment) return assignment.mentor_id;
+
   const firstSession = await MentorSession.findOne({
     where: { mentee_id: studentId },
     order: [["createdAt", "ASC"]],
   });
+  return firstSession?.mentor_id || null;
+};
+
+// GET /mentor/dashboard
+export const getDashboard = async (studentId) => {
+  const mentorId = await resolveMentorId(studentId);
 
   let mentor = null;
-  if (firstSession) {
-    const mentorUser = await User.findByPk(firstSession.mentor_id, {
+  if (mentorId) {
+    const mentorUser = await User.findByPk(mentorId, {
       attributes: ["id", "name", "email", "department", "designation", "mobileNumber", "officeLocation"],
     });
     mentor = fmtMentor(mentorUser);
@@ -101,12 +113,7 @@ export const getDashboard = async (studentId) => {
 // POST /mentor/meetings/request
 // body: { preferredDate, preferredTime, mode, agenda }
 export const requestMeeting = async (studentId, data) => {
-  const firstSession = await MentorSession.findOne({
-    where: { mentee_id: studentId },
-    order: [["createdAt", "ASC"]],
-  });
-
-  const mentorId = data.mentorId || firstSession?.mentor_id;
+  const mentorId = data.mentorId || await resolveMentorId(studentId);
   if (!mentorId) throw Object.assign(new Error("No mentor assigned yet"), { statusCode: 400 });
 
   const scheduledAt = data.preferredDate && data.preferredTime
@@ -129,18 +136,18 @@ export const requestMeeting = async (studentId, data) => {
 // POST /mentor/feedback
 // body: { rating, comment }
 export const submitFeedback = async (studentId, data) => {
-  const firstSession = await MentorSession.findOne({
-    where: { mentee_id: studentId },
-    order: [["createdAt", "ASC"]],
-  });
-
-  const mentorId = data.mentorId || firstSession?.mentor_id;
+  const mentorId = data.mentorId || await resolveMentorId(studentId);
   if (!mentorId) throw Object.assign(new Error("No mentor assigned yet"), { statusCode: 400 });
 
   if (!data.rating) throw Object.assign(new Error("Rating is required"), { statusCode: 400 });
 
+  const latestSession = await MentorSession.findOne({
+    where: { mentee_id: studentId, mentor_id: mentorId },
+    order: [["createdAt", "DESC"]],
+  });
+
   const fb = await MentorFeedback.create({
-    session_id: firstSession?.id || null,
+    session_id: latestSession?.id || null,
     mentor_id:  mentorId,
     mentee_id:  studentId,
     rating:     data.rating,

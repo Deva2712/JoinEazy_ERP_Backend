@@ -1,6 +1,9 @@
 // src/modules/cohort-assignments/cohort-assignments-service.js
 import { CohortAssignment, AssignmentSubmission } from "./cohort-assignments-model.js";
 import { notify } from "../../utils/notification-helper.js";
+import { addJobToMany } from "../../utils/job-tray-helper.js";
+import { JobTrayItem } from "../job-tray/job-tray-model.js";
+import CohortMember from "../cohort-members/cohort-members-model.js";
 
 // GET /cohort/:cohortId/assignments
 export const getAssignments = async (cohortId, studentId = null) => {
@@ -42,6 +45,17 @@ export const createAssignment = async (cohortId, body, userId) => {
     submission_link: body.submissionLink || null,
     created_by:      userId,
   });
+
+  // FIX (functional gap): new assignments never showed up anywhere as an actionable
+  // pending task — students only found out by opening the assignments tab themselves.
+  const students = await CohortMember.findAll({ where: { cohort_id: String(cohortId), role: "student" } });
+  await addJobToMany(students.map((s) => s.user_id), {
+    type: "assignment",
+    title: `New assignment: ${assignment.title}`,
+    message: assignment.deadline ? `Due ${new Date(assignment.deadline).toDateString()}.` : null,
+    link: "/cohort/assignments",
+  });
+
   return assignment.toJSON();
 };
 
@@ -118,6 +132,15 @@ export const submitAssignment = async (cohortId, assignmentId, student, body = {
       link: fileUrl || body.link || submission.link,
       note: body.note || submission.note,
     });
+  }
+
+  // Submission fulfilled the pending task — close out the matching job-tray item.
+  const assignment = await CohortAssignment.findByPk(assignmentId, { attributes: ["title"] });
+  if (assignment) {
+    await JobTrayItem.update(
+      { status: "completed" },
+      { where: { user_id: String(student.id), type: "assignment", title: `New assignment: ${assignment.title}`, status: "pending" } },
+    );
   }
 
   return { submission: submission.toJSON(), already_submitted: !created };

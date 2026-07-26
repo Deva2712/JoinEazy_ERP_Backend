@@ -5,7 +5,12 @@ import sequelize from "../../database/connection.js";
 const RegistrarRequest = sequelize.define("RegistrarRequest", {
   id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
   student_id:  { type: DataTypes.UUID,   allowNull: false },
-  type:        { type: DataTypes.ENUM("transcript","bonafide","migration","degree","other"), allowNull: false },
+  type: { type: DataTypes.ENUM(
+    "transcript", "bonafide", "migration", "degree", "other",
+    "no_dues", "character", "conduct", "lor",
+    "provisional_transcript", "transfer_certificate",
+    "marksheet_10", "marksheet_12", "cmm"
+  ), allowNull: false, defaultValue: "other" },
   purpose:     { type: DataTypes.TEXT,    allowNull: true },
   status:      { type: DataTypes.ENUM("pending","processing","ready","delivered","rejected"), defaultValue: "pending" },
   remarks:     { type: DataTypes.TEXT,    allowNull: true },
@@ -25,8 +30,6 @@ const LorRequest = sequelize.define("LorRequest", {
   status:       { type: DataTypes.ENUM("pending","accepted","rejected","completed"), defaultValue: "pending" },
   remarks:      { type: DataTypes.TEXT, allowNull: true },
   meeting_time: { type: DataTypes.DATE, allowNull: true },
-  // nowhere to store it and no route/service function handled these calls at all.
-  meeting_status: { type: DataTypes.ENUM("Proposed", "Accepted", "Cancelled"), allowNull: true },
   supporting_doc_url: { type: DataTypes.STRING(1000), allowNull: true },
   lor_file_url:       { type: DataTypes.STRING(1000), allowNull: true },
 }, { tableName: "lor_requests", timestamps: true });

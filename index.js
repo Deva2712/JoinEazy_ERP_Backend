@@ -43,6 +43,10 @@ import "./src/modules/revaluation/revaluation-model.js";
 import "./src/modules/hostel/hostel-model.js";
 import "./src/modules/placement/placement-model.js";
 import "./src/modules/examination/examination-model.js";
+import "./src/modules/profmentoring/profmentoring-model.js";
+import "./src/modules/marks-management/marks-model.js"; 
+await import("./src/modules/courses/courses-cron.js");
+await import("./src/modules/cohort-announcements/cohort-announcement-cron.js");
 
 const PORT = process.env.PORT || 8000;
 
@@ -61,6 +65,8 @@ const runEnumFixes = async () => {
 connectDB()
   .then(async () => {
     await runEnumFixes();
+    await import("./src/modules/courses/courses-cron.js"); 
+     await import("./src/modules/cohort-announcements/cohort-announcement-cron.js");
     app.listen(PORT, () => {
       logger.info(`Server running on port ${PORT} in ${process.env.NODE_ENV || "development"} mode`);
     });

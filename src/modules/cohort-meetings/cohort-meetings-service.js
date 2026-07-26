@@ -2,6 +2,8 @@
 import CohortMeeting from "./cohort-meetings-model.js";
 import { MeetingRequest } from "../schedule/schedule-model.js";
 import { Cohort } from "../cohort/cohort-model.js";
+import { addJobToMany } from "../../utils/job-tray-helper.js";
+import CohortMember from "../cohort-members/cohort-members-model.js";
 
 export const getMeetings = async (cohortId) => {
   const meetings = await CohortMeeting.findAll({
@@ -23,6 +25,18 @@ export const createMeeting = async (cohortId, data, author) => {
     scheduled_at:    data.scheduledAt || data.scheduled_at,
     duration_mins:   data.durationMins || data.duration_mins || 60,
   });
+
+  // FIX (functional gap): scheduled meetings never showed up as an actionable pending
+  // task for the cohort — students only found out by opening the meetings tab.
+  const students = await CohortMember.findAll({ where: { cohort_id: String(cohortId), role: "student" } });
+  await addJobToMany(students.map((s) => s.user_id), {
+    type: "meeting",
+    title: `Meeting scheduled: ${meeting.title}`,
+    message: meeting.scheduled_at ? `Scheduled for ${new Date(meeting.scheduled_at).toLocaleString()}.` : null,
+    link: "/cohort/meetings",
+    priority: "high",
+  });
+
   return meeting.toJSON();
 };
 
