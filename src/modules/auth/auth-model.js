@@ -1,7 +1,6 @@
 import { DataTypes } from "sequelize";
 import sequelize from "../../database/connection.js";
 import bcrypt from "bcryptjs";
-
 const User = sequelize.define(
   "User",
   {
@@ -25,15 +24,14 @@ const User = sequelize.define(
       allowNull: false,
     },
     role: {
-      type: DataTypes.ENUM("admin", "professor", "student", "staff", "warden"),
+      type: DataTypes.ENUM("admin", "professor", "student", "staff", "warden", "dean"),
       defaultValue: "student",
     },
     isActive: {
       type: DataTypes.BOOLEAN,
       defaultValue: true,
     },
-
-    // ─── Professor / Staff profile fields ────────────────────────────────────
+        // ─── Professor / Staff profile fields ────────────────────────────────────
     dateOfBirth:      { type: DataTypes.DATEONLY, allowNull: true },
     gender:           { type: DataTypes.STRING, allowNull: true },
     employeeId:       { type: DataTypes.STRING, allowNull: true },

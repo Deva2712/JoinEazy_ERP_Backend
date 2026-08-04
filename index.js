@@ -67,6 +67,7 @@ connectDB()
     await runEnumFixes();
     await import("./src/modules/courses/courses-cron.js"); 
      await import("./src/modules/cohort-announcements/cohort-announcement-cron.js");
+     
     app.listen(PORT, () => {
       logger.info(`Server running on port ${PORT} in ${process.env.NODE_ENV || "development"} mode`);
     });
