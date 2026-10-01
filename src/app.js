@@ -38,6 +38,7 @@ import studentProfileRoutes from "./modules/student-profile/student-profile-rout
 import calendarRoutes from "./modules/calendar/calendar-routes.js";
 import materialsRoutes from "./modules/cohort-materials/cohort-materials-routes.js";
 import discussionsRoutes from "./modules/cohort-discussions/cohort-discussions-routes.js";
+import placementRoutes from "./modules/placement/placement-routes.js";
 
 import expensesRoutes from "./modules/expenses/expenses-routes.js";
 import advancesRoutes from "./modules/advances/advances-routes.js";
@@ -108,6 +109,7 @@ app.use("/api/v1/student",   revalStudentRoutes);
 
 app.use("/api/v1/registrar", registrarRoutes);
 app.use("/api/v1/student", studentProfileRoutes);
+app.use("/api/v1/placement", placementRoutes);
 
 app.get("/health", (req, res) =>
   res.status(200).json({ status: "ok", timestamp: new Date().toISOString() })
