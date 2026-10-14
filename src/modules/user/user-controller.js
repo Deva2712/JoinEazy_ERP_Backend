@@ -26,13 +26,13 @@ export const removeUser = asyncHandler(async (req, res) => {
 export const getDashboardOverview = asyncHandler(async (req, res) => {
   const { Cohort, CohortParticipant } = await import("../cohort/cohort-model.js");
   const User = (await import("../auth/auth-model.js")).default;
-  const { StudentProfile } = await import("../student-profile/student-profile-model.js");
+  const { PlacementStudent } = await import("../placement/placement-model.js");
   const { Op } = await import("sequelize");
   const userId = req.user.id;
-  const [user, studentProfile] = await Promise.all([
+  const [user, placementStudent] = await Promise.all([
     User.findByPk(userId, { attributes: ["department"] }),
     req.user.role === "student"
-      ? StudentProfile.findOne({ where: { user_id: userId }, attributes: ["branch", "cgpa", "backlogs", "graduationYear"] })
+      ? PlacementStudent.findOne({ where: { userId }, attributes: ["branch", "cgpa", "backlogs", "batchYear"] })
       : null,
   ]);
 
@@ -88,10 +88,10 @@ export const getDashboardOverview = asyncHandler(async (req, res) => {
         role: req.user.role,
         department: user?.department || null,
         ...(req.user.role === "student" && {
-          branch: studentProfile?.branch || null,
-          cgpa: studentProfile?.cgpa ?? null,
-          backlogs: studentProfile?.backlogs ?? null,
-          graduationYear: studentProfile?.graduationYear ?? null,
+          branch: placementStudent?.branch || null,
+          cgpa: placementStudent?.cgpa ?? null,
+          backlogs: placementStudent?.backlogs ?? null,
+          graduationYear: placementStudent?.batchYear ?? null,
         }),
       },
       createdCohorts: createdCohorts.map(format),

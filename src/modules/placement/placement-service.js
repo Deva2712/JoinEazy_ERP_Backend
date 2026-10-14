@@ -5,7 +5,9 @@ import {
   PlacementJob,
   PlacementApplication,
   PlacementOffer,
-  PlacementAssessmentResult,
+  PlacementStudent,
+  AssessmentTest,
+  AssessmentScore,
   PlacementTrainingSession,
   PlacementTrainingAttendance,
   PlacementTrainingTest,
@@ -14,16 +16,83 @@ import {
   PlacementCourseEnrollment,
 } from "./placement-model.js";
 
+const jobStatusToStorage = {
+  open: "Applications open",
+  closed: "Closed",
+  "Applications open": "Applications open",
+  Assessment: "Assessment",
+  Interviews: "Interviews",
+  Offered: "Offered",
+  "Drive complete": "Drive complete",
+  Closed: "Closed",
+  Cancelled: "Cancelled",
+};
+
+const jobStatusToApi = {
+  "Applications open": "open",
+  Closed: "closed",
+};
+
+const applicationStatusToStorage = {
+  Interview: "Interview Scheduled",
+};
+
+const applicationStatusToApi = {
+  "Interview Scheduled": "Interview",
+};
+
+const courseStatusToStorage = {
+  upcoming: "Planned",
+  active: "Running",
+  completed: "Completed",
+};
+
+const courseStatusToApi = {
+  Planned: "upcoming",
+  Running: "active",
+  Completed: "completed",
+  Cancelled: "cancelled",
+};
+
+const enrollmentStatusToApi = {
+  Enrolled: "Enrolled",
+  Completed: "Completed",
+  Dropped: "Dropped",
+};
+
+const modeToStorage = {
+  online: "Online",
+  offline: "Offline",
+  hybrid: "Online",
+  Online: "Online",
+  Offline: "Offline",
+};
+
+const modeToApi = {
+  Online: "online",
+  Offline: "offline",
+};
+
 const notAuthorizedForStudent = () => {
   const err = new Error("Not authorized for this student");
   err.statusCode = 403;
   throw err;
 };
 
+const storageJobStatus = (status) => jobStatusToStorage[status] || status;
+const apiJobStatus = (status) => jobStatusToApi[status] || status;
+const storageApplicationStatus = (status) => applicationStatusToStorage[status] || status;
+const apiApplicationStatus = (status) => applicationStatusToApi[status] || status;
+const storageCourseStatus = (status) => courseStatusToStorage[status] || status;
+const apiCourseStatus = (status) => courseStatusToApi[status] || status;
+const apiEnrollmentStatus = (status) => enrollmentStatusToApi[status] || status;
+const storageMode = (mode) => modeToStorage[mode] || mode;
+const apiMode = (mode) => modeToApi[mode] || mode;
+
 const resolveStudentAccess = async (requestedId, userId) => {
   if (!requestedId || requestedId === userId) return userId;
-  const profile = await StudentProfile.findOne({ where: { rollNo: requestedId }, attributes: ["user_id"] });
-  if (profile?.user_id === userId) return userId;
+  const student = await PlacementStudent.findOne({ where: { rollNo: requestedId }, attributes: ["userId"] });
+  if (student?.userId === userId) return userId;
   notAuthorizedForStudent();
 };
 
@@ -45,6 +114,10 @@ const getStudentProfile = async (userId) => {
     defaults: { user_id: userId },
   });
   return profile;
+};
+
+const getPlacementStudent = async (userId) => {
+  return PlacementStudent.findOne({ where: { userId } });
 };
 
 const defaultPlacementPortfolio = (portfolio = {}) => ({
@@ -70,6 +143,11 @@ const normalizeDocuments = (documents) => {
 
 const publicUrlForFile = (file) => file?.location || file?.path || null;
 
+const shapeJob = (job) => {
+  const j = job?.toJSON ? job.toJSON() : job;
+  return { ...j, status: apiJobStatus(j.status) };
+};
+
 const shapeOffer = (offer) => {
   const o = offer?.toJSON ? offer.toJSON() : offer;
   return {
@@ -92,16 +170,17 @@ const shapeOffer = (offer) => {
   };
 };
 
-const shapeAssessmentResult = (row) => {
-  const r = row?.toJSON ? row.toJSON() : row;
+const shapeAssessmentResult = (score) => {
+  const s = score?.toJSON ? score.toJSON() : score;
+  const test = s.test || s.AssessmentTest || {};
   return {
-    id: r.id,
-    jobId: r.jobId,
-    studentId: r.studentId,
-    rollNo: r.rollNo,
-    result: r.result,
-    notes: r.notes,
-    uploadedAt: r.uploadedAt,
+    id: s.id,
+    jobId: test.job_id || null,
+    studentId: s.student_id,
+    rollNo: s.student?.rollNo || null,
+    result: s.result,
+    notes: s.notes,
+    uploadedAt: s.attempted_at || s.updatedAt || s.createdAt,
   };
 };
 
@@ -121,7 +200,8 @@ const shapeSession = async (session) => {
     instructor: s.instructor,
     instructorId: s.instructorId,
     capacity: s.capacity,
-    mode: s.mode,
+    mode: apiMode(s.mode),
+    status: s.status,
     venue: s.venue,
     link: s.link,
     eligibleBranches: s.eligibleBranches,
@@ -154,6 +234,7 @@ const shapeCompany = (company) => {
     name: c.name,
     sector: c.sector,
     profile: c.profile,
+    status: c.status,
     recruiterContacts: [],
     hiringHistory: [],
     engagementScore: c.engagementScore,
@@ -162,14 +243,14 @@ const shapeCompany = (company) => {
 
 const shapeApplication = (application) => {
   const a = application?.toJSON ? application.toJSON() : application;
-  const job = a.PlacementJob || a.job || null;
+  const job = a.job || a.PlacementJob || null;
   return {
     id: a.id,
     jobId: a.jobId,
     studentId: a.studentId,
     studentName: a.studentName,
     studentRoll: a.studentRoll,
-    status: a.status,
+    status: apiApplicationStatus(a.status),
     currentRound: a.currentRound,
     resumeUrl: a.resumeUrl,
     appliedAt: a.appliedAt,
@@ -186,7 +267,7 @@ const shapeApplication = (application) => {
       package: job.package,
       stipend: job.stipend,
       deadline: job.deadline,
-      status: job.status,
+      status: apiJobStatus(job.status),
     } : null,
   };
 };
@@ -212,6 +293,8 @@ const shapeCourse = async (course, studentId) => {
     instructorIds: c.instructorIds,
     guestInstructors: c.guestInstructors,
     defaultInstructor: c.defaultInstructor,
+    status: apiCourseStatus(c.status),
+    enrollmentStatus: enrolled ? apiEnrollmentStatus(enrolled.status) : null,
     enrolled: Boolean(enrolled),
     enrolledCount,
   };
@@ -229,28 +312,47 @@ const shapeProfessorProgramCourse = (course) => {
     capacity: c.capacity,
     startDate: c.startDate,
     endDate: c.endDate,
-    status: c.status,
+    status: apiCourseStatus(c.status),
   };
 };
 
-const shapeProfessorProgramStudent = (enrollment, user, profile) => ({
+const shapeProfessorProgramStudent = (enrollment, user, placementStudent) => ({
   studentId: enrollment.studentId,
-  name: user?.name || profile?.full_name || null,
-  rollNo: profile?.rollNo || profile?.official_email || null,
-  branch: profile?.branch || null,
+  name: user?.name || placementStudent?.name || null,
+  rollNo: placementStudent?.rollNo || placementStudent?.email || null,
+  branch: placementStudent?.branch || null,
+});
+
+const normalizeTrainingCourseData = (data) => ({
+  ...data,
+  ...(data.status !== undefined && { status: storageCourseStatus(data.status) }),
+});
+
+const normalizeTrainingSessionData = (data) => ({
+  ...data,
+  ...(data.mode !== undefined && { mode: storageMode(data.mode) }),
+});
+
+const normalizeApplicationData = (data) => ({
+  ...data,
+  ...(data.status !== undefined && { status: storageApplicationStatus(data.status) }),
 });
 
 export const getOverview = async (studentId) => {
   const [jobs, applications, profile] = await Promise.all([
-    PlacementJob.findAll({ where: { status: "open", archived: false }, order: [["postedAt", "DESC"]] }),
-    PlacementApplication.findAll({ where: { studentId }, order: [["appliedAt", "DESC"]] }),
+    PlacementJob.findAll({ where: { status: "Applications open", archived: false }, order: [["postedAt", "DESC"]] }),
+    PlacementApplication.findAll({
+      where: { studentId },
+      include: [{ model: PlacementJob, as: "job", required: false }],
+      order: [["appliedAt", "DESC"]],
+    }),
     getStudentProfile(studentId),
   ]);
   const portfolio = profile.portfolio || {};
   const documents = normalizeDocuments(portfolio.documents);
   return {
-    jobs,
-    applications,
+    jobs: jobs.map(shapeJob),
+    applications: applications.map(shapeApplication),
     resumeUrl: documents.resumeUrl || null,
     projectUrl: portfolio.projects?.[0]?.link || null,
   };
@@ -269,17 +371,19 @@ export const applyToJob = async (studentId, user, jobId) => {
     throw err;
   }
 
-  const profile = await StudentProfile.findOne({ where: { user_id: studentId } });
+  const [profile, placementStudent] = await Promise.all([
+    StudentProfile.findOne({ where: { user_id: studentId } }),
+    getPlacementStudent(studentId),
+  ]);
   const documents = normalizeDocuments(profile?.portfolio?.documents);
-  const application = await PlacementApplication.create({
+  return PlacementApplication.create(normalizeApplicationData({
     studentId,
     jobId,
-    studentName: user.name || null,
-    studentRoll: profile?.rollNo || profile?.official_email || null,
+    studentName: placementStudent?.name || user.name || null,
+    studentRoll: placementStudent?.rollNo || profile?.official_email || null,
     resumeUrl: documents.resumeUrl || null,
     status: "Applied",
-  });
-  return application;
+  }));
 };
 
 export const updateResume = async (studentId, file) => {
@@ -325,18 +429,26 @@ export const updatePlacementProfile = async (studentId, data) => {
 };
 
 export const updateOfferStatus = async (studentId, offerId, status) => {
+  const nextStatus = status === "Deferred" ? "Pending" : status;
   const offer = await PlacementOffer.findOne({ where: { id: offerId, studentId } });
   if (!offer) {
     const err = new Error("Offer not found");
     err.statusCode = 404;
     throw err;
   }
-  await offer.update({ status });
+  await offer.update({ status: nextStatus });
   return shapeOffer(offer);
 };
 
 export const getAssessmentResults = async (studentId, jobId) => {
-  const rows = await PlacementAssessmentResult.findAll({ where: { studentId, jobId }, order: [["uploadedAt", "DESC"]] });
+  const rows = await AssessmentScore.findAll({
+    where: { student_id: studentId },
+    include: [
+      { model: AssessmentTest, as: "test", required: true, where: { job_id: jobId } },
+      { model: PlacementStudent, as: "student", required: false },
+    ],
+    order: [["attempted_at", "DESC"], ["updatedAt", "DESC"]],
+  });
   return rows.map(shapeAssessmentResult);
 };
 
@@ -376,11 +488,13 @@ export const getTrainingAttendanceForUser = async (requestedStudentId, user) => 
 export const upsertAttendance = async (user, data) => {
   const studentId = user.role === "professor" ? data.studentId : data.studentId || user.id;
   const resolvedStudentId = user.role === "professor" ? studentId : await resolveStudentAccess(studentId, user.id);
+  const placementStudent = await getPlacementStudent(resolvedStudentId);
   const [row] = await PlacementTrainingAttendance.findOrCreate({
     where: { sessionId: data.sessionId, studentId: resolvedStudentId },
     defaults: {
       sessionId: data.sessionId,
       studentId: resolvedStudentId,
+      studentRollNo: placementStudent?.rollNo || data.studentRollNo || null,
       present: data.present ?? false,
       registered: data.registered ?? false,
       notes: data.notes || null,
@@ -388,6 +502,7 @@ export const upsertAttendance = async (user, data) => {
     },
   });
   await row.update({
+    studentRollNo: placementStudent?.rollNo || data.studentRollNo || row.studentRollNo,
     present: data.present ?? row.present,
     registered: data.registered ?? row.registered,
     notes: data.notes ?? row.notes,
@@ -432,13 +547,16 @@ export const enrollInCourse = async (userId, data) => {
     err.statusCode = 409;
     throw err;
   }
-  return PlacementCourseEnrollment.create({ courseId: data.courseId, studentId: userId });
+  return PlacementCourseEnrollment.create({ courseId: data.courseId, studentId: userId, status: "Enrolled" });
 };
 
 export const createTrainingCourse = async (user, data) => {
   const instructorIds = Array.isArray(data.instructorIds) ? data.instructorIds : [];
   const nextInstructorIds = instructorIds.includes(user.id) ? instructorIds : [...instructorIds, user.id];
-  return shapeCourse(await PlacementTrainingCourse.create({ ...data, instructorIds: nextInstructorIds }), null);
+  return shapeCourse(await PlacementTrainingCourse.create({
+    ...normalizeTrainingCourseData(data),
+    instructorIds: nextInstructorIds,
+  }), null);
 };
 
 export const updateTrainingCourse = async (user, courseId, data) => {
@@ -449,7 +567,7 @@ export const updateTrainingCourse = async (user, courseId, data) => {
     err.statusCode = course ? 403 : 404;
     throw err;
   }
-  await course.update(data);
+  await course.update(normalizeTrainingCourseData(data));
   return shapeCourse(course, null);
 };
 
@@ -467,7 +585,7 @@ export const deleteTrainingCourse = async (user, courseId) => {
 
 export const createTrainingSession = async (user, data) => {
   const session = await PlacementTrainingSession.create({
-    ...data,
+    ...normalizeTrainingSessionData(data),
     instructorId: user.id,
     instructor: user.name || data.instructor || null,
   });
@@ -477,7 +595,7 @@ export const createTrainingSession = async (user, data) => {
 export const updateTrainingSession = async (user, sessionId, data) => {
   const session = await PlacementTrainingSession.findByPk(sessionId);
   assertOwner(session, user.id, "Training session");
-  await session.update({ ...data, instructorId: user.id });
+  await session.update({ ...normalizeTrainingSessionData(data), instructorId: user.id });
   return shapeSession(session);
 };
 
@@ -507,7 +625,13 @@ export const deleteTrainingTest = async (user, testId) => {
   return { success: true, message: "Training test deleted" };
 };
 
-export const createTrainingScore = async (data) => PlacementTrainingScore.create(data);
+export const createTrainingScore = async (data) => {
+  const placementStudent = data.studentId ? await getPlacementStudent(data.studentId) : null;
+  return PlacementTrainingScore.create({
+    ...data,
+    studentRollNo: placementStudent?.rollNo || data.studentRollNo || null,
+  });
+};
 
 export const updateTrainingScore = async (scoreId, data) => {
   const score = await PlacementTrainingScore.findByPk(scoreId);
@@ -532,22 +656,22 @@ export const getProfessorOverview = async (branch) => {
       accepted: shaped.filter((offer) => offer.status === "Accepted").length,
       pending: shaped.filter((offer) => offer.status === "Pending").length,
       rejected: shaped.filter((offer) => offer.status === "Rejected").length,
-      deferred: shaped.filter((offer) => offer.status === "Deferred").length,
+      deferred: 0,
     },
     branch: branch || null,
   };
 };
 
 export const getCurrentStudents = async () => {
-  const [users, profiles, acceptedOffers] = await Promise.all([
+  const [users, placementStudents, acceptedOffers] = await Promise.all([
     User.findAll({ where: { role: "student" }, attributes: ["id", "name"], order: [["name", "ASC"]] }),
-    StudentProfile.findAll({
-      attributes: ["user_id", "rollNo", "branch", "graduationYear", "cgpa", "backlogs"],
+    PlacementStudent.findAll({
+      attributes: ["userId", "rollNo", "branch", "batchYear", "cgpa", "backlogs"],
     }),
     PlacementOffer.findAll({ where: { status: "Accepted" }, order: [["createdAt", "DESC"]] }),
   ]);
 
-  const profilesByUserId = new Map(profiles.map((profile) => [profile.user_id, profile]));
+  const studentsByUserId = new Map(placementStudents.map((student) => [student.userId, student]));
   const acceptedOfferByStudentId = new Map();
   acceptedOffers.forEach((offer) => {
     if (offer.studentId && !acceptedOfferByStudentId.has(offer.studentId)) {
@@ -556,16 +680,16 @@ export const getCurrentStudents = async () => {
   });
 
   return users.map((user) => {
-    const profile = profilesByUserId.get(user.id);
+    const student = studentsByUserId.get(user.id);
     const offer = acceptedOfferByStudentId.get(user.id);
     return {
       id: user.id,
-      rollNo: profile?.rollNo || null,
+      rollNo: student?.rollNo || null,
       name: user.name,
-      branch: profile?.branch || null,
-      year: profile?.graduationYear ?? null,
-      cgpa: profile?.cgpa ?? null,
-      backlogs: profile?.backlogs ?? null,
+      branch: student?.branch || null,
+      year: student?.batchYear ?? null,
+      cgpa: student?.cgpa ?? null,
+      backlogs: student?.backlogs ?? null,
       placementStatus: offer ? "Placed" : "Not Started",
       company: offer?.companyName || null,
       role: offer?.role || null,
@@ -589,11 +713,14 @@ export const getProfessorPrograms = async (professorId) => {
     ]);
 
     const students = await Promise.all(enrollments.map(async (enrollment) => {
-      const [user, profile] = await Promise.all([
+      const [user, placementStudent] = await Promise.all([
         User.findByPk(enrollment.studentId, { attributes: ["id", "name"] }),
-        StudentProfile.findOne({ where: { user_id: enrollment.studentId }, attributes: ["full_name", "rollNo", "official_email", "branch"] }),
+        PlacementStudent.findOne({
+          where: { userId: enrollment.studentId },
+          attributes: ["name", "rollNo", "email", "branch"],
+        }),
       ]);
-      return shapeProfessorProgramStudent(enrollment, user, profile);
+      return shapeProfessorProgramStudent(enrollment, user, placementStudent);
     }));
 
     return {
@@ -606,7 +733,7 @@ export const getProfessorPrograms = async (professorId) => {
 
 export const getPlacementApplications = async () => {
   const applications = await PlacementApplication.findAll({
-    include: [{ model: PlacementJob, required: false }],
+    include: [{ model: PlacementJob, as: "job", required: false }],
     order: [["appliedAt", "DESC"]],
   });
   return applications.map(shapeApplication);
@@ -628,10 +755,9 @@ export const getCompany = async (id) => {
 };
 
 export const getTrainingInstructors = async () => {
-  const users = await User.findAll({
+  return User.findAll({
     where: { role: "professor" },
     attributes: ["id", "name", "email", "role", "department"],
     order: [["name", "ASC"]],
   });
-  return users;
 };

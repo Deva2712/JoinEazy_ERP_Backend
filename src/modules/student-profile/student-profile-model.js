@@ -36,11 +36,6 @@ const StudentProfile = sequelize.define("StudentProfile", {
   diploma:  { type: DataTypes.JSON, allowNull: true },
   ug:       { type: DataTypes.JSON, allowNull: true },
   pg:       { type: DataTypes.JSON, allowNull: true },
-  branch:   { type: DataTypes.STRING, allowNull: true },
-  cgpa:     { type: DataTypes.FLOAT, allowNull: true },
-  backlogs: { type: DataTypes.INTEGER, allowNull: true },
-  graduationYear: { type: DataTypes.INTEGER, allowNull: true },
-  rollNo:   { type: DataTypes.STRING, allowNull: true },
   career_objective: { type: DataTypes.TEXT, allowNull: true },
 
   // Gap

@@ -1,10 +1,12 @@
 import { StudentProfile, ProfileDocument } from "./student-profile-model.js";
 import User from "../auth/auth-model.js";
+import { PlacementStudent } from "../placement/placement-model.js";
 
 const camelizeAddress = (addr) => addr || { line1: "", line2: "", city: "", state: "", pin: "", country: "India" };
 
-const toFrontendShape = (profile, user) => {
+const toFrontendShape = (profile, user, placementStudent) => {
   const p = profile?.toJSON ? profile.toJSON() : (profile || {});
+  const ps = placementStudent?.toJSON ? placementStudent.toJSON() : (placementStudent || {});
   return {
     studentData: {
       fullName:        p.full_name || user?.name || "",
@@ -31,6 +33,11 @@ const toFrontendShape = (profile, user) => {
       diploma: p.diploma || { college: "", board: "", year: "", percentage: "", branch: "" },
       ug:      p.ug      || { college: "", university: "", year: "", cgpa: "", branch: "" },
       pg:      p.pg      || { college: "", university: "", year: "", cgpa: "", branch: "" },
+      rollNo: ps.rollNo || "",
+      branch: ps.branch || "",
+      cgpa: ps.cgpa ?? "",
+      backlogs: ps.backlogs ?? "",
+      graduationYear: ps.batchYear ?? "",
       careerObjective: p.career_objective || "",
       hasGap: p.has_gap || "No", gapYear: p.gap_year || "", gapReason: p.gap_reason || "",
       bloodGroup: p.blood_group || "", medicalConditions: p.medical_conditions || "",
@@ -50,9 +57,12 @@ const toFrontendShape = (profile, user) => {
 };
 
 export const getProfile = async (userId) => {
-  const profile = await StudentProfile.findOne({ where: { user_id: userId } });
-  const user = await User.findByPk(userId, { attributes: ["name", "email"] });
-  return toFrontendShape(profile, user);
+  const [profile, user, placementStudent] = await Promise.all([
+    StudentProfile.findOne({ where: { user_id: userId } }),
+    User.findByPk(userId, { attributes: ["name", "email"] }),
+    PlacementStudent.findOne({ where: { userId } }),
+  ]);
+  return toFrontendShape(profile, user, placementStudent);
 };
 
 const toSnakeAddress = (a) => a ? {
@@ -88,14 +98,29 @@ export const updateProfile = async (userId, data) => {
   // Remove undefined keys
   Object.keys(updates).forEach(k => updates[k] === undefined && delete updates[k]);
 
-  const [profile] = await StudentProfile.findOrCreate({
-    where: { user_id: userId },
-    defaults: { user_id: userId, ...updates },
-  });
+  const placementUpdates = {
+    rollNo: data.rollNo,
+    branch: data.branch,
+    cgpa: data.cgpa,
+    backlogs: data.backlogs,
+    batchYear: data.graduationYear,
+  };
+  Object.keys(placementUpdates).forEach(k => placementUpdates[k] === undefined && delete placementUpdates[k]);
+
+  const [profile, placementStudent] = await Promise.all([
+    StudentProfile.findOrCreate({
+      where: { user_id: userId },
+      defaults: { user_id: userId, ...updates },
+    }).then(([row]) => row),
+    PlacementStudent.findOne({ where: { userId } }),
+  ]);
   await profile.update(updates);
+  if (placementStudent && Object.keys(placementUpdates).length > 0) {
+    await placementStudent.update(placementUpdates);
+  }
 
   const user = await User.findByPk(userId, { attributes: ["name", "email"] });
-  return toFrontendShape(profile, user);
+  return toFrontendShape(profile, user, placementStudent);
 };
 
 export const updatePortfolio = async (userId, portfolioData) => {
@@ -104,8 +129,11 @@ export const updatePortfolio = async (userId, portfolioData) => {
     defaults: { user_id: userId, portfolio: portfolioData },
   });
   await profile.update({ portfolio: portfolioData });
-  const user = await User.findByPk(userId, { attributes: ["name", "email"] });
-  return toFrontendShape(profile, user);
+  const [user, placementStudent] = await Promise.all([
+    User.findByPk(userId, { attributes: ["name", "email"] }),
+    PlacementStudent.findOne({ where: { userId } }),
+  ]);
+  return toFrontendShape(profile, user, placementStudent);
 };
 
 export const addDocument = async (userId, docType, file) => {
